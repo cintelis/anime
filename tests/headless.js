@@ -7,6 +7,7 @@
 // Environment:
 //   CHROME_BIN    Chrome / Chromium executable (defaults to the usual install path for the platform)
 //   TEST_TIMEOUT  Maximum run time in ms (default 300000)
+//   TEST_POINTER  Emulated pointer type: 'fine' (mouse, default) or 'coarse' (touch)
 
 import { createServer } from 'node:http';
 import { readFile, mkdtemp, rm } from 'node:fs/promises';
@@ -54,10 +55,19 @@ const debugPort = await new Promise(resolve => {
   });
 });
 
+// Behave like a desktop with a mouse even on CI machines without one. The draggable picks its drag
+// threshold from (pointer: fine), so without this, mouse-driven tests would get the touch threshold.
+// Blink pointer types: 2 = coarse, 4 = fine. Hover types: 1 = none, 2 = hover.
+const pointer = process.env.TEST_POINTER === 'coarse' ? 'coarse' : 'fine';
+const blinkPointer = pointer === 'fine'
+  ? 'primaryPointerType=4,availablePointerTypes=4,primaryHoverType=2,availableHoverTypes=2'
+  : 'primaryPointerType=2,availablePointerTypes=2,primaryHoverType=1,availableHoverTypes=1';
+
 const profile = await mkdtemp(path.join(tmpdir(), 'anime-tests-'));
 const chrome = spawn(chromeBin, [
   '--headless=new', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`,
   '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--window-size=1280,900',
+  `--blink-settings=${blinkPointer}`,
   // Keep timers and animation frames running at full rate (tests drive drags frame by frame)
   '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
   ...(process.env.CI ? ['--no-sandbox'] : []),
@@ -118,7 +128,7 @@ const send = (method, params = {}, sessionId) => new Promise(resolve => {
 });
 
 const version = (await send('Browser.getVersion')).result;
-console.log(`  Running tests in ${version.product}`);
+console.log(`  Running tests in ${version.product} (pointer: ${pointer})`);
 
 const { result: { targetId } } = await send('Target.createTarget', { url: 'about:blank' });
 const { result: { sessionId } } = await send('Target.attachToTarget', { targetId, flatten: true });
