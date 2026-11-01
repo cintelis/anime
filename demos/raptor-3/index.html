@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demo 6: Raptor 3 / Anime.js + three.js</title>
+  <style>
+    :root { --fg: #e9edf2; --muted: #7d8794; --accent: #ff7a2a; --line: #ffffff1f; }
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; overflow: hidden; background: radial-gradient(ellipse at 50% 35%, #161c26 0%, #06080c 70%); color: var(--fg); font-family: "Segoe UI", system-ui, sans-serif; }
+    #stage { position: fixed; inset: 0; }
+    canvas { display: block; }
+    a.back { position: fixed; top: 18px; left: 24px; color: var(--muted); text-decoration: none; font-size: 13px; z-index: 5; }
+
+    .title { position: fixed; top: 48px; left: 24px; width: 300px; pointer-events: none; }
+    .title small { color: var(--accent); letter-spacing: .3em; font-size: 11px; font-weight: 700; }
+    .title h1 { font-size: 44px; font-weight: 300; letter-spacing: .06em; margin-top: 4px; }
+    .title p { color: var(--muted); font-size: 12px; margin-top: 4px; line-height: 1.5; }
+    .specs { margin-top: 18px; border-top: 1px solid var(--line); font-size: 12px; }
+    .specs div { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+    .specs span { color: var(--muted); }
+    .specs b { font-weight: 500; text-align: right; }
+
+    .tele { position: fixed; top: 48px; right: 24px; width: 240px; border-top: 1px solid var(--line); }
+    .tele div { display: flex; justify-content: space-between; align-items: baseline; padding: 11px 0; border-bottom: 1px solid var(--line); }
+    .tele span { color: var(--muted); font-size: 11px; letter-spacing: .15em; }
+    .tele b { font-size: 21px; font-weight: 300; font-variant-numeric: tabular-nums; text-align: right; }
+    .tele b i { font-style: normal; font-size: 11px; color: var(--muted); margin-left: 4px; }
+    .tele b small { display: block; font-size: 11px; color: var(--muted); }
+    #status { color: #6ee7a8; font-size: 12px; font-weight: 700; letter-spacing: .15em; }
+
+    .controls { position: fixed; bottom: 22px; left: 50%; transform: translateX(-50%); display: flex; gap: 8px; align-items: center; background: #0b0f16cc; border: 1px solid var(--line); padding: 9px; border-radius: 14px; backdrop-filter: blur(8px); flex-wrap: wrap; justify-content: center; max-width: 94vw; }
+    button { background: #1a212c; color: var(--fg); border: 1px solid var(--line); padding: 10px 15px; border-radius: 9px; font-size: 12px; letter-spacing: .08em; cursor: pointer; font-weight: 600; }
+    button:hover { background: #232c3a; }
+    button.fire { background: var(--accent); border-color: var(--accent); color: #1a0d04; }
+    button.fire.on { background: #e5484d; border-color: #e5484d; color: #fff; }
+    button.active { border-color: var(--accent); color: var(--accent); }
+    button:disabled { opacity: .4; cursor: default; }
+    label.throttle { display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--muted); padding: 0 6px; letter-spacing: .1em; }
+    input[type=range] { accent-color: var(--accent); width: 110px; }
+
+    .label { position: fixed; left: 0; top: 0; pointer-events: none; opacity: 0; font-size: 12px; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+    .label::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); flex: none; }
+    .label span { background: #0b0f16d8; border: 1px solid var(--line); padding: 4px 8px; border-radius: 6px; }
+    .note { position: fixed; bottom: 84px; left: 50%; transform: translateX(-50%); color: var(--muted); font-size: 11px; pointer-events: none; text-align: center; white-space: nowrap; }
+    @media (max-width: 1000px) { .specs, .note { display: none; } }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.184.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+  <a class="back" href="../">&larr; All demos</a>
+
+  <div class="title">
+    <small>DEMO 06 · ANIME.JS + THREE.JS</small>
+    <h1>RAPTOR 3</h1>
+    <p>Unofficial 3D model built from public photos. Exterior only, proportions measured from photos; not affiliated with SpaceX.</p>
+    <div class="specs">
+      <div><span>Propellant</span><b>LOX / CH₄</b></div>
+      <div><span>Cycle</span><b>Full-flow staged combustion</b></div>
+      <div><span>Thrust (sea level)</span><b>250 tf · 2,452 kN</b></div>
+      <div><span>Thrust (vacuum)</span><b>275 tf · 2,697 kN</b></div>
+      <div><span>Isp (sea level)</span><b>350 s</b></div>
+      <div><span>Engine mass</span><b>1,525 kg</b></div>
+      <div><span>Thrust-to-weight</span><b>163.9</b></div>
+      <div><span>Heat shroud</span><b>None (integrated)</b></div>
+    </div>
+  </div>
+
+  <div class="tele">
+    <div><span>STATUS</span><b id="status">SAFE</b></div>
+    <div><span>THRUST</span><b><em id="t-thrust">0</em><i>tf</i><small id="t-kn">0 kN</small></b></div>
+    <div><span>PROPELLANT FLOW</span><b><em id="t-flow">0</em><i>kg/s</i></b></div>
+    <div><span>THRUST / WEIGHT</span><b><em id="t-tw">0.0</em></b></div>
+    <div><span>GIMBAL</span><b><em id="t-gimbal">0.0°</em></b></div>
+  </div>
+
+  <div class="note">Flow = thrust ÷ Isp (vacuum Isp ≈380 s is an estimate). Startup steps and vacuum nozzle size are illustrative.</div>
+  <div class="controls">
+    <button class="fire" id="fire">IGNITE</button>
+    <label class="throttle">THROTTLE <input type="range" id="throttle" min="40" max="100" value="100"> <b id="throttle-v">100%</b></label>
+    <button id="gimbal">GIMBAL TEST</button>
+    <button id="explode">EXPLODED VIEW</button>
+    <button id="variant">VACUUM VARIANT</button>
+    <button id="spin" class="active">AUTO-ROTATE</button>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+    import { animate, createTimeline, stagger, utils } from '../../dist/modules/index.js';
+    import '../../dist/modules/adapters/three/index.js'; // lets animate() drive three.js objects
+
+    // ==================================================================
+    // Specs (from the brief) used by the telemetry
+    // ==================================================================
+    const SPEC = {
+      sl:  { thrust: 250, isp: 350, exitY: -3.1 },
+      vac: { thrust: 275, isp: 380, exitY: -4.6 }, // vacuum Isp is an estimate (not in the brief)
+      mass: 1525,
+    };
+
+    // ==================================================================
+    // Scene
+    // ==================================================================
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    document.getElementById('stage').appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = 0.85;
+
+    const camera = new THREE.PerspectiveCamera(34, innerWidth / innerHeight, 0.05, 300);
+    camera.position.set(12, 2, 16);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, -2.1, 0);
+    controls.enableDamping = true;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.5;
+    controls.minDistance = 2;
+    controls.maxDistance = 30;
+
+    scene.add(new THREE.AmbientLight(0x8899aa, 0.35));
+    const key = new THREE.DirectionalLight(0xffffff, 2.4);
+    key.position.set(4, 6, 5);
+    scene.add(key);
+    const rim = new THREE.DirectionalLight(0x7fb0ff, 1.8);
+    rim.position.set(-5, 1, -5);
+    scene.add(rim);
+    const fill = new THREE.DirectionalLight(0xffe2c4, 0.6);
+    fill.position.set(-3, -4, 4);
+    scene.add(fill);
+
+    {
+      const pts = new Float32Array(1800 * 3);
+      for (let i = 0; i < pts.length; i += 3) {
+        const v = new THREE.Vector3().randomDirection().multiplyScalar(60 + Math.random() * 60);
+        pts.set([v.x, v.y, v.z], i);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+      scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0x8899bb, size: 0.15 })));
+    }
+
+    // ==================================================================
+    // Materials (matched to the photos: satin black body, graphite powerhead, machined silver)
+    // ==================================================================
+    const black = new THREE.MeshStandardMaterial({ color: 0x1b1c1f, metalness: 0.35, roughness: 0.5, side: THREE.DoubleSide });
+    const graphite = new THREE.MeshStandardMaterial({ color: 0x2b2c30, metalness: 0.65, roughness: 0.42 });
+    const silver = new THREE.MeshStandardMaterial({ color: 0xc9ced5, metalness: 1, roughness: 0.22 });
+    const darkSilver = new THREE.MeshStandardMaterial({ color: 0x80868e, metalness: 1, roughness: 0.3 });
+    const blueAnod = new THREE.MeshStandardMaterial({ color: 0x3f78b5, metalness: 0.8, roughness: 0.3 });
+    const nozzleMat = new THREE.MeshStandardMaterial({ color: 0x1c1d20, metalness: 0.3, roughness: 0.55, side: THREE.DoubleSide, emissive: 0xff4a12, emissiveIntensity: 0 });
+    const vacMat = new THREE.MeshStandardMaterial({ color: 0x45484e, metalness: 0.85, roughness: 0.35, side: THREE.DoubleSide, emissive: 0xff8a30, emissiveIntensity: 0 });
+
+    // ==================================================================
+    // Geometry helpers
+    // ==================================================================
+    const V3 = (x, y, z) => new THREE.Vector3(x, y, z);
+    const mesh = (geo, mat, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); return m; };
+    const lathe = (pts, mat, segs = 96, phiStart = 0, phiLength = Math.PI * 2) =>
+      new THREE.Mesh(new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), segs, phiStart, phiLength), mat);
+    const torus = (R, tube, mat, x = 0, y = 0, z = 0) => { const m = mesh(new THREE.TorusGeometry(R, tube, 20, 96), mat, x, y, z); m.rotation.x = Math.PI / 2; return m; };
+    const tube = (pts, r, mat, segs = 80) => new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => V3(...p))), segs, r, 16), mat);
+    const cyl = (r, h, mat, x, y, z, seg = 40) => mesh(new THREE.CylinderGeometry(r, r, h, seg), mat, x, y, z);
+    const box = (w, h, d, mat, x, y, z) => mesh(new THREE.BoxGeometry(w, h, d), mat, x, y, z);
+
+    // Ring of hex bolt heads around the Y axis (one draw call)
+    const boltRing = (r, y, n, size, mat, cx = 0, cz = 0) => {
+      const im = new THREE.InstancedMesh(new THREE.CylinderGeometry(size, size, size * 1.2, 6), mat, n);
+      const m = new THREE.Matrix4();
+      for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2;
+        im.setMatrixAt(i, m.makeTranslation(cx + Math.cos(a) * r, y, cz + Math.sin(a) * r));
+      }
+      return im;
+    };
+
+    // Flat plate shaped like the convex hull of several circles (the wide two-lobe flange)
+    const hull = pts => {
+      pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+      const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+      const lo = [], up = [];
+      for (const p of pts) { while (lo.length > 1 && cross(lo.at(-2), lo.at(-1), p) <= 0) lo.pop(); lo.push(p); }
+      for (const p of pts.reverse()) { while (up.length > 1 && cross(up.at(-2), up.at(-1), p) <= 0) up.pop(); up.push(p); }
+      return lo.slice(0, -1).concat(up.slice(0, -1));
+    };
+    const plate = (circles, depth, y, mat) => {
+      const pts = [];
+      circles.forEach(([cx, cz, r]) => { for (let i = 0; i < 72; i++) { const a = i / 72 * Math.PI * 2; pts.push([cx + Math.cos(a) * r, cz + Math.sin(a) * r]); } });
+      const shape = new THREE.Shape(hull(pts).map(([x, z]) => new THREE.Vector2(x, z)));
+      const geo = new THREE.ExtrudeGeometry(shape, { depth, bevelEnabled: true, bevelThickness: 0.012, bevelSize: 0.012, bevelSegments: 3, curveSegments: 12 });
+      geo.rotateX(Math.PI / 2); // lay flat; extrudes downward from y = 0
+      return mesh(geo, mat, 0, y, 0);
+    };
+
+    // Round port boss on the powerhead (facing outward at `angle`, measured from +X toward -Z)
+    const portBoss = (parent, angle, y, surfaceR) => {
+      const g = new THREE.Group();
+      g.rotation.y = angle;
+      const body = cyl(0.058, 0.08, graphite, surfaceR + 0.02, y, 0, 32);
+      body.rotation.z = Math.PI / 2;
+      g.add(body);
+      const face = cyl(0.036, 0.012, new THREE.MeshStandardMaterial({ color: 0x0c0c0e, roughness: 0.6 }), surfaceR + 0.062, y, 0, 24);
+      face.rotation.z = Math.PI / 2;
+      g.add(face);
+      const rimRing = mesh(new THREE.TorusGeometry(0.046, 0.005, 8, 32), darkSilver, surfaceR + 0.062, y, 0);
+      rimRing.rotation.y = Math.PI / 2;
+      g.add(rimRing);
+      parent.add(g);
+    };
+
+    // ==================================================================
+    // Model. Units are metres; engine top at y = 0, nozzle exit at y = -3.1.
+    // `root` holds the fixed thrust puck; `pivot` holds everything that gimbals.
+    // ==================================================================
+    const root = new THREE.Group();
+    scene.add(root);
+    const pivot = new THREE.Group();
+    pivot.position.y = -0.27;     // gimbal point just under the puck
+    root.add(pivot);
+    const engine = new THREE.Group();
+    engine.position.y = 0.27;     // cancel the offset so children use absolute coordinates
+    pivot.add(engine);
+
+    const parts = [];
+    const labels = [];
+    const addPart = (obj, parent, off) => { parent.add(obj); parts.push({ obj, home: obj.position.clone(), off: V3(...off) }); return obj; };
+    const addLabel = (text, parent, x, y, z) => {
+      const a = new THREE.Object3D(); a.position.set(x, y, z); parent.add(a);
+      const el = document.createElement('div');
+      el.className = 'label';
+      el.innerHTML = `<span>${text}</span>`;
+      document.body.appendChild(el);
+      labels.push({ el, anchor: a });
+    };
+
+    // --- 1. Gimbal thrust puck (silver, with a bolted flange) ---
+    const puck = new THREE.Group();
+    puck.add(lathe([[0, 0], [0.1, 0], [0.105, -0.01], [0.105, -0.05], [0.12, -0.06], [0.12, -0.2], [0.14, -0.22], [0.14, -0.245]], silver, 64));
+    puck.add(mesh(new THREE.CircleGeometry(0.1, 48).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x8fb0d0, metalness: 1, roughness: 0.15 }), 0, 0.001, 0));
+    [-0.09, -0.13, -0.17].forEach(y => puck.add(torus(0.121, 0.004, darkSilver, 0, y, 0)));
+    puck.add(cyl(0.26, 0.045, darkSilver, 0, -0.27, 0, 64));
+    puck.add(boltRing(0.23, -0.24, 24, 0.012, silver));
+    addPart(puck, root, [0, 0.55, 0]);
+    addLabel('Gimbal thrust puck', puck, 0.13, -0.12, 0);
+
+    // --- 2. Powerhead: graphite body with round port bosses and a wide bolted base ---
+    const powerhead = new THREE.Group();
+    powerhead.add(lathe([[0.15, -0.29], [0.2, -0.31], [0.215, -0.36], [0.215, -0.58], [0.24, -0.66], [0.28, -0.74], [0.3, -0.8], [0.3, -0.86]], graphite));
+    powerhead.add(boltRing(0.19, -0.32, 18, 0.011, darkSilver));
+    [-Math.PI / 2 - 0.36, -Math.PI / 2 + 0.36, -Math.PI / 2 - 1.25, -Math.PI / 2 + 1.25, Math.PI / 2 - 0.4, Math.PI / 2 + 0.4]
+      .forEach(a => portBoss(powerhead, a, -0.46, 0.2));
+    powerhead.add(cyl(0.42, 0.03, graphite, 0, -0.875, 0, 96));
+    powerhead.add(boltRing(0.385, -0.85, 44, 0.014, silver));
+    powerhead.add(cyl(0.4, 0.04, graphite, 0, -0.905, 0, 96));
+    addPart(powerhead, engine, [0, 0.38, 0]);
+    addLabel('Powerhead', powerhead, -0.24, -0.55, 0);
+
+    // --- 3. Valves & controllers mounted directly on the engine (no heat shroud) ---
+    const valves = new THREE.Group();
+    valves.add(box(0.16, 0.12, 0.12, silver, 0.3, -0.66, 0.12));
+    valves.add(box(0.12, 0.1, 0.1, silver, 0.42, -0.71, 0.15));
+    valves.add(box(0.14, 0.12, 0.12, darkSilver, 0.36, -0.68, -0.13));
+    const disc = cyl(0.075, 0.035, silver, 0.4, -0.63, 0.23, 40);
+    disc.rotation.x = Math.PI / 2;
+    valves.add(disc);
+    {
+      const bolts = boltRing(0.06, 0, 8, 0.009, darkSilver);
+      bolts.position.set(0.4, -0.63, 0.25);
+      bolts.rotation.x = Math.PI / 2;
+      valves.add(bolts);
+    }
+    valves.add(cyl(0.065, 0.07, blueAnod, 0.5, -0.6, -0.04, 32));
+    valves.add(cyl(0.05, 0.02, graphite, 0.5, -0.555, -0.04, 32));
+    [[0.24, -0.75, 0.18], [0.34, -0.77, 0.19], [0.46, -0.64, 0.05]].forEach(([x, y, z]) => valves.add(cyl(0.02, 0.06, silver, x, y, z, 16)));
+    valves.add(tube([[0.17, -0.5, 0.16], [0.22, -0.41, 0.18], [0.32, -0.39, 0.18], [0.37, -0.47, 0.17], [0.38, -0.6, 0.16]], 0.016, silver, 48));
+    addPart(valves, engine, [0.7, 0.45, 0.45]);
+    addLabel('Valves & controllers (no shroud)', valves, 0.5, -0.66, 0.12);
+
+    // --- 4. Wide two-layer flange spanning the main column and the side housing ---
+    const flange = new THREE.Group();
+    flange.add(plate([[0, 0, 0.44], [0.44, 0, 0.3]], 0.05, -0.925, black));
+    flange.add(plate([[0, 0, 0.42], [0.44, 0, 0.28]], 0.07, -0.995, black));
+    addPart(flange, engine, [0, 0.25, 0]);
+    addLabel('Main manifold flange', flange, -0.45, -0.97, 0);
+
+    // --- 5. Side housing (right lobe): body above and below the flange, ribbed, ending in an elbow duct ---
+    const side = new THREE.Group();
+    side.add(cyl(0.2, 0.17, graphite, 0.44, -0.84, 0, 48));
+    side.add(cyl(0.17, 0.32, black, 0.44, -1.22, 0, 48));
+    [-1.11, -1.25].forEach(y => side.add(torus(0.17, 0.042, black, 0.44, y, 0)));
+    side.add(tube([[0.44, -1.3, 0], [0.44, -1.47, 0], [0.38, -1.6, 0], [0.24, -1.67, 0]], 0.13, black, 48));
+    side.add(tube([[0.56, -1.08, 0.1], [0.58, -1.38, 0.12], [0.47, -1.68, 0.22], [0.36, -1.8, 0.27]], 0.011, black, 48));
+    side.add(tube([[0.3, -1.06, 0.24], [0.29, -1.3, 0.3], [0.3, -1.56, 0.31]], 0.009, black, 32));
+    addPart(side, engine, [0.75, -0.05, -0.1]);
+    addLabel('Turbomachinery housing', side, 0.62, -1.2, 0);
+
+    // --- 6. Main combustion chamber column: bellows-like manifold rings, then the cone to the nozzle ---
+    const chamber = new THREE.Group();
+    chamber.add(lathe([[0.3, -1.04], [0.24, -1.07], [0.235, -1.55]], black));
+    chamber.add(torus(0.25, 0.07, black, 0, -1.12, 0));
+    chamber.add(torus(0.24, 0.068, black, 0, -1.3, 0));
+    chamber.add(torus(0.25, 0.085, black, 0, -1.5, 0));
+    chamber.add(lathe([[0.22, -1.55], [0.25, -1.6], [0.35, -1.74], [0.38, -1.79], [0.385, -1.86]], black));
+    addPart(chamber, engine, [-0.0, 0, 0]);
+    addLabel('Main combustion chamber', chamber, -0.32, -1.5, -0.05);
+
+    // --- 7. Large transfer duct: from the bolted volute flange, arcing down the front into the lower manifold ---
+    const duct = new THREE.Group();
+    const ductPts = [[0.62, -0.8, 0.1], [0.5, -0.76, 0.26], [0.38, -0.82, 0.36], [0.3, -1.0, 0.42], [0.24, -1.25, 0.42], [0.15, -1.45, 0.36], [0.0, -1.52, 0.33]];
+    duct.add(tube(ductPts, 0.068, black, 120));
+    {
+      const p0 = V3(...ductPts[0]), dir = V3(...ductPts[0]).sub(V3(...ductPts[1])).normalize();
+      const fl = mesh(new THREE.TorusGeometry(0.085, 0.028, 16, 48), graphite, p0.x, p0.y, p0.z);
+      fl.lookAt(p0.clone().add(dir));
+      fl.add(boltRing(0.085, 0, 12, 0.01, silver).rotateX(Math.PI / 2).translateY(0.028));
+      duct.add(fl);
+      const vol = mesh(new THREE.TorusGeometry(0.11, 0.05, 16, 48), graphite, 0.66, -0.8, -0.02);
+      vol.lookAt(V3(0.66, -0.8, -0.02).add(dir));
+      duct.add(vol);
+    }
+    addPart(duct, engine, [0.35, 0, 0.8]);
+    addLabel('Propellant transfer duct', duct, 0.36, -0.86, 0.38);
+
+    // --- 8. Nozzle: coolant manifold ring + bell measured from the photos + painted "1" ---
+    const nozzle = new THREE.Group();
+    const NOZ_TOP = -1.88, NOZ_BOT = -3.1;
+    const nozzleR = t => 0.41 + 0.265 * (1 - Math.pow(1 - t, 1.35));
+    const nozProfile = (t0, t1, n, grow = 1) => Array.from({ length: n }, (_, i) => {
+      const t = t0 + (t1 - t0) * i / (n - 1);
+      return [nozzleR(t) * grow, NOZ_TOP + (NOZ_BOT - NOZ_TOP) * t];
+    });
+    nozzle.add(torus(0.375, 0.062, black, 0, -1.85, 0));
+    nozzle.add(lathe([[0.39, -1.86], [0.41, NOZ_TOP]], nozzleMat));
+    nozzle.add(lathe(nozProfile(0, 1, 48), nozzleMat, 128));
+    nozzle.add(torus(nozzleR(1), 0.012, black, 0, NOZ_BOT, 0));
+    {
+      // Painted "1": a canvas texture on a thin patch of the bell, slightly outside the surface
+      const c = document.createElement('canvas'); c.width = 256; c.height = 512;
+      const ctx = c.getContext('2d');
+      ctx.fillStyle = 'rgba(240,240,236,.93)';
+      ctx.font = 'bold 300px "Segoe UI", Arial, sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('1', 128, 256);
+      const tex = new THREE.CanvasTexture(c);
+      tex.flipY = false;
+      tex.colorSpace = THREE.SRGBColorSpace;
+      const decal = lathe(nozProfile(0.14, 0.52, 16, 1.004), new THREE.MeshStandardMaterial({ map: tex, transparent: true, roughness: 0.7, metalness: 0, depthWrite: false, side: THREE.DoubleSide }), 16, 0.2, 0.42);
+      nozzle.add(decal);
+    }
+    addPart(nozzle, engine, [0, -0.75, 0]);
+    addLabel('Nozzle coolant manifold', nozzle, -0.42, -1.85, 0);
+    addLabel('Regen-cooled nozzle', nozzle, -nozzleR(0.6), NOZ_TOP + (NOZ_BOT - NOZ_TOP) * 0.6, 0);
+
+    // --- 9. Vacuum variant nozzle extension (hidden until toggled; size is approximate) ---
+    const vacExt = new THREE.Group();
+    vacExt.position.y = NOZ_BOT;
+    const vacR = t => 0.675 + 0.5 * (1 - Math.pow(1 - t, 1.6));
+    vacExt.add(lathe(Array.from({ length: 40 }, (_, i) => { const t = i / 39; return [vacR(t), -1.5 * t]; }), vacMat, 128));
+    vacExt.add(torus(vacR(1), 0.02, darkSilver, 0, -1.5, 0));
+    vacExt.add(torus(0.685, 0.025, darkSilver, 0, -0.01, 0));
+    engine.add(vacExt);
+    utils.set(vacExt, { scaleY: 0.001, scaleX: 0.98, scaleZ: 0.98 });
+    vacExt.visible = false;
+
+    // ==================================================================
+    // Exhaust plume (additive cones + shock diamonds), sized to the 1.35 m exit
+    // ==================================================================
+    const gradientTexture = stops => {
+      const c = document.createElement('canvas'); c.width = 4; c.height = 256;
+      const ctx = c.getContext('2d');
+      const g = ctx.createLinearGradient(0, 0, 0, 256);
+      stops.forEach(([o, col]) => g.addColorStop(o, col));
+      ctx.fillStyle = g; ctx.fillRect(0, 0, 4, 256);
+      return new THREE.CanvasTexture(c);
+    };
+    const plumeTex = gradientTexture([[0, 'rgba(255,255,255,1)'], [.1, 'rgba(255,225,180,.9)'], [.45, 'rgba(255,135,60,.42)'], [1, 'rgba(255,70,10,0)']]);
+    const glowMat = (color) => new THREE.MeshBasicMaterial({ color, map: plumeTex, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide });
+    const cone = (top, bottom, h, mat) => { const geo = new THREE.CylinderGeometry(top, bottom, h, 64, 1, true); geo.translate(0, -h / 2, 0); return new THREE.Mesh(geo, mat); };
+
+    const plume = new THREE.Group();
+    plume.position.y = SPEC.sl.exitY;
+    engine.add(plume);
+    const flicker = new THREE.Group();
+    plume.add(flicker);
+    const outerMat = glowMat(0xff9a50), coreMat = glowMat(0xb4ccff);
+    flicker.add(cone(0.64, 0.5, 5.2, outerMat));
+    flicker.add(cone(0.6, 0.12, 2.1, coreMat));
+    const DIAMOND_Y = [-0.62, -1.25, -1.82, -2.32];
+    const diamondMats = [];
+    const diamonds = DIAMOND_Y.map((y, i) => {
+      const m = new THREE.MeshBasicMaterial({ color: 0xffe4b8, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+      diamondMats.push(m);
+      const d = mesh(new THREE.OctahedronGeometry(0.17 - i * 0.022, 0), m, 0, y, 0);
+      d.scale.set(1, 1.9, 1);
+      flicker.add(d);
+      return d;
+    });
+    const spriteTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const ctx = c.getContext('2d');
+      const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      g.addColorStop(0, 'rgba(255,205,150,1)'); g.addColorStop(.4, 'rgba(255,110,40,.33)'); g.addColorStop(1, 'rgba(255,60,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+      return new THREE.CanvasTexture(c);
+    })();
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
+    glow.scale.setScalar(3.2);
+    plume.add(glow);
+    const flameLight = new THREE.PointLight(0xff7a30, 0, 10, 1.6);
+    flameLight.position.y = -0.4;
+    plume.add(flameLight);
+    utils.set(plume, { scaleX: 0.3, scaleY: 0.05, scaleZ: 0.3 });
+
+    // ==================================================================
+    // State tweened by anime.js and read by the render loop
+    // ==================================================================
+    const state = { shake: 0 };
+    const tele = { thrust: 0 };
+    let running = false, exploded = false, vacuum = false, busy = true;
+    let throttle = 1;
+    const $ = id => document.getElementById(id);
+    const setStatus = (text, color) => { $('status').textContent = text; $('status').style.color = color; };
+    const spec = () => vacuum ? SPEC.vac : SPEC.sl;
+
+    const plumeTargets = t => vacuum
+      ? { scaleX: 1.55 + 0.25 * t, scaleY: 1.1 + 0.3 * t, scaleZ: 1.55 + 0.25 * t }
+      : { scaleX: 0.84 + 0.16 * t, scaleY: 0.55 + 0.45 * t, scaleZ: 0.84 + 0.16 * t };
+    const HOME_CAM = { x: 4.6, y: -0.9, z: 5.7 };
+    const camFor = () => exploded ? { x: 5.4, y: -0.4, z: 6.6 } : vacuum ? { x: 7.0, y: -1.9, z: 8.6 } : HOME_CAM;
+    const targetFor = () => exploded ? -1.8 : vacuum ? -3.0 : -2.1;
+
+    // ==================================================================
+    // Intro: parts fly in and assemble; camera dollies in
+    // ==================================================================
+    parts.forEach(p => p.obj.position.copy(p.home).addScaledVector(p.off.lengthSq() ? p.off : V3(0, -1.5, 0), 4));
+    createTimeline({ defaults: { ease: 'outExpo' }, onComplete: () => busy = false })
+      .add(camera, { ...HOME_CAM, duration: 3400, ease: 'inOutQuart' }, 0)
+      .add(parts.map(p => p.obj), {
+        x: (o, i) => parts[i].home.x, y: (o, i) => parts[i].home.y, z: (o, i) => parts[i].home.z,
+        rotateY: { from: -120 },
+        duration: 1800,
+      }, stagger(130, { start: 600 }));
+
+    // ==================================================================
+    // Ignition: bootstrapped spin-start, acoustic ignition, mainstage
+    // ==================================================================
+    $('fire').onclick = () => (running ? shutdown() : ignite());
+
+    function ignite() {
+      if (busy) return;
+      if (exploded) toggleExplode();
+      running = busy = true;
+      $('fire').classList.add('on');
+      $('fire').textContent = 'SHUTDOWN';
+      $('variant').disabled = true;
+      const s = spec();
+      const outerOpacity = vacuum ? 0.5 : 0.85;
+
+      createTimeline({ onComplete: () => { busy = false; setStatus('MAINSTAGE', '#ff7a2a'); } })
+        .call(() => setStatus('CHILL-DOWN', '#7fc8ff'), 0)
+        .call(() => setStatus('SPIN-START · GCH₄/GOX', '#ffcc66'), 700)
+        .call(() => setStatus('IGNITION', '#ffaa44'), 1400)
+        .add(plume, { ...plumeTargets(throttle), duration: 1100, ease: 'outElastic(1, .55)' }, 1400)
+        .add(outerMat, { opacity: outerOpacity, duration: 400 }, 1400)
+        .add(coreMat, { opacity: vacuum ? 0.6 : 0.9, duration: 400 }, 1450)
+        .add(glow.material, { opacity: 0.9, duration: 400 }, 1400)
+        .add(flameLight, { intensity: 30, duration: 500 }, 1400)
+        .add(diamondMats, { opacity: (m, i) => vacuum ? 0 : 0.75 - i * 0.15, duration: 400, delay: stagger(90) }, 1550)
+        .add(state, { shake: 1, duration: 300 }, 1400)
+        .add(tele, { thrust: s.thrust * throttle, duration: 1700, ease: 'outExpo' }, 1400)
+        .add(vacMat, { emissiveIntensity: vacuum ? 0.13 : 0, duration: 3500, ease: 'outSine' }, 1700); // only the radiatively cooled vacuum extension glows
+    }
+
+    function shutdown() {
+      if (busy) return;
+      running = false; busy = true;
+      $('fire').classList.remove('on');
+      $('fire').textContent = 'IGNITE';
+      setStatus('SHUTDOWN', '#e5484d');
+      // Metal keeps glowing and cools off on its own, without locking the controls
+      animate([nozzleMat, vacMat], { emissiveIntensity: 0, duration: 5000, ease: 'outQuad' });
+      createTimeline({ onComplete: () => { busy = false; $('variant').disabled = false; setStatus('SAFE', '#6ee7a8'); } })
+        .add([outerMat, coreMat, glow.material, ...diamondMats], { opacity: 0, duration: 350, ease: 'inQuad' }, 0)
+        .add(plume, { scaleY: 0.05, scaleX: 0.3, scaleZ: 0.3, duration: 400, ease: 'inQuad' }, 0)
+        .add(flameLight, { intensity: 0, duration: 400 }, 0)
+        .add(state, { shake: 0, duration: 400 }, 0)
+        .add(tele, { thrust: 0, duration: 900, ease: 'outQuad' }, 0);
+    }
+
+    $('throttle').oninput = e => {
+      throttle = e.target.value / 100;
+      $('throttle-v').textContent = e.target.value + '%';
+      if (!running || busy) return;
+      animate(plume, { ...plumeTargets(throttle), duration: 700, ease: 'outCubic', composition: 'replace' });
+      animate(tele, { thrust: spec().thrust * throttle, duration: 900, ease: 'outCubic', composition: 'replace' });
+      animate(outerMat, { opacity: (vacuum ? 0.3 : 0.55) + (vacuum ? 0.2 : 0.3) * throttle, duration: 500, composition: 'replace' });
+    };
+
+    // Gimbal test: + pattern steering check
+    $('gimbal').onclick = () => {
+      if (busy && !running) return;
+      $('gimbal').disabled = true;
+      animate(pivot, {
+        rotateX: [0, 7, -7, 0, 0, 0],
+        rotateZ: [0, 0, 0, 7, -7, 0],
+        duration: 5000, ease: 'inOutSine',
+        onComplete: () => $('gimbal').disabled = false,
+      });
+    };
+
+    // Exploded view with labels
+    $('explode').onclick = () => toggleExplode();
+    function toggleExplode() {
+      if (busy || (running && !exploded)) return;
+      exploded = !exploded;
+      $('explode').classList.toggle('active', exploded);
+      $('explode').textContent = exploded ? 'ASSEMBLE' : 'EXPLODED VIEW';
+      createTimeline()
+        .add(parts.map(p => p.obj), {
+          x: (o, i) => parts[i].home.x + (exploded ? parts[i].off.x : 0),
+          y: (o, i) => parts[i].home.y + (exploded ? parts[i].off.y : 0),
+          z: (o, i) => parts[i].home.z + (exploded ? parts[i].off.z : 0),
+          duration: 1300, ease: 'inOutQuart',
+        }, stagger(60, { from: exploded ? 'first' : 'last' }))
+        .add(labels.map(l => l.el), {
+          opacity: exploded ? 1 : 0, x: exploded ? [-10, 0] : 0,
+          duration: 400, ease: 'outQuad',
+        }, stagger(50, { start: exploded ? 700 : 0 }))
+        .add(camera, { ...camFor(), duration: 1400, ease: 'inOutQuart' }, 0)
+        .add(controls.target, { y: targetFor(), duration: 1400, ease: 'inOutQuart' }, 0);
+    }
+
+    // Sea-level ↔ vacuum variant: grow the nozzle extension and move the plume to the new exit
+    $('variant').onclick = () => {
+      if (busy || running) return;
+      vacuum = !vacuum;
+      $('variant').classList.toggle('active', vacuum);
+      $('variant').textContent = vacuum ? 'SEA-LEVEL VARIANT' : 'VACUUM VARIANT';
+      if (vacuum) vacExt.visible = true;
+      createTimeline()
+        .add(vacExt, vacuum
+          ? { scaleY: [0.001, 1], scaleX: [0.98, 1], scaleZ: [0.98, 1], duration: 1400, ease: 'outElastic(1, .7)' }
+          : { scaleY: 0.001, scaleX: 0.98, scaleZ: 0.98, duration: 700, ease: 'inQuart', onComplete: () => vacExt.visible = false }, 0)
+        .add(plume, { y: spec().exitY, duration: 10 }, 0)
+        .add(camera, { ...camFor(), duration: 1400, ease: 'inOutQuart' }, 0)
+        .add(controls.target, { y: targetFor(), duration: 1400, ease: 'inOutQuart' }, 0);
+    };
+
+    $('spin').onclick = () => {
+      controls.autoRotate = !controls.autoRotate;
+      $('spin').classList.toggle('active', controls.autoRotate);
+    };
+
+    // ==================================================================
+    // Render loop
+    // ==================================================================
+    const timer = new THREE.Timer();
+    const v = new THREE.Vector3();
+    renderer.setAnimationLoop(time => {
+      timer.update(time);
+      const t = timer.getElapsed();
+
+      const n = Math.sin(t * 61) * 0.5 + Math.sin(t * 37.3) * 0.5;
+      flicker.scale.set(1 + n * 0.025, 1 + Math.sin(t * 43.7) * 0.04, 1 + n * 0.025);
+      diamonds.forEach((d, i) => d.position.y = DIAMOND_Y[i] + Math.sin(t * 30 + i) * 0.03);
+      glow.material.rotation = t * 0.5;
+
+      const s = spec();
+      $('t-thrust').textContent = Math.round(tele.thrust);
+      $('t-kn').textContent = Math.round(tele.thrust * 9.80665).toLocaleString() + ' kN';
+      $('t-flow').textContent = Math.round(tele.thrust * 1000 / s.isp);       // ṁ = F / (Isp · g0), F in tf → kg/s
+      // Mass in the brief is for the sea-level engine only, so T/W isn't shown for the vacuum variant
+      $('t-tw').textContent = vacuum ? 'n/a' : (tele.thrust * 1000 / SPEC.mass).toFixed(1);
+      $('t-gimbal').textContent = Math.hypot(THREE.MathUtils.radToDeg(pivot.rotation.x), THREE.MathUtils.radToDeg(pivot.rotation.z)).toFixed(1) + '°';
+
+      controls.update();
+      const sh = state.shake * 0.008 * (0.6 + throttle * 0.4);
+      const sx = (Math.random() - .5) * sh, sy = (Math.random() - .5) * sh;
+      camera.position.x += sx; camera.position.y += sy;
+      renderer.render(scene, camera);
+      camera.position.x -= sx; camera.position.y -= sy;
+
+      labels.forEach(({ el, anchor }) => {
+        anchor.getWorldPosition(v).project(camera);
+        el.style.left = (v.x * 0.5 + 0.5) * innerWidth + 'px';
+        el.style.top = ((-v.y * 0.5 + 0.5) * innerHeight - 6) + 'px';
+      });
+    });
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>

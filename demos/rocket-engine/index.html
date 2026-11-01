@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demo 5: 3D Rocket Engine / Anime.js + three.js</title>
+  <style>
+    :root { --fg: #e9edf2; --muted: #7d8794; --accent: #ff7a2a; --line: #ffffff22; }
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; overflow: hidden; background: radial-gradient(ellipse at 50% 30%, #121a26 0%, #05070b 70%); color: var(--fg); font-family: "Segoe UI", system-ui, sans-serif; }
+    #stage { position: fixed; inset: 0; }
+    canvas { display: block; }
+    a.back { position: fixed; top: 18px; left: 24px; color: var(--muted); text-decoration: none; font-size: 13px; z-index: 5; }
+
+    .title { position: fixed; top: 50px; left: 24px; pointer-events: none; }
+    .title small { color: var(--accent); letter-spacing: .3em; font-size: 11px; font-weight: 700; }
+    .title h1 { font-size: 34px; font-weight: 300; letter-spacing: .04em; margin-top: 6px; }
+    .title p { color: var(--muted); font-size: 13px; margin-top: 6px; max-width: 340px; line-height: 1.5; }
+
+    /* Telemetry */
+    .tele { position: fixed; top: 50px; right: 24px; width: 230px; border-top: 1px solid var(--line); }
+    .tele div { display: flex; justify-content: space-between; align-items: baseline; padding: 12px 0; border-bottom: 1px solid var(--line); }
+    .tele span { color: var(--muted); font-size: 11px; letter-spacing: .15em; }
+    .tele b { font-size: 22px; font-weight: 300; font-variant-numeric: tabular-nums; }
+    .tele b i { font-style: normal; font-size: 11px; color: var(--muted); margin-left: 4px; }
+    #status { color: #6ee7a8; font-size: 13px; font-weight: 700; letter-spacing: .2em; }
+
+    /* Controls */
+    .controls { position: fixed; bottom: 26px; left: 50%; transform: translateX(-50%); display: flex; gap: 10px; align-items: center; background: #0b0f16cc; border: 1px solid var(--line); padding: 10px; border-radius: 14px; backdrop-filter: blur(8px); flex-wrap: wrap; justify-content: center; }
+    button { background: #1a212c; color: var(--fg); border: 1px solid var(--line); padding: 11px 18px; border-radius: 9px; font-size: 13px; letter-spacing: .08em; cursor: pointer; font-weight: 600; }
+    button:hover { background: #232c3a; }
+    button.fire { background: var(--accent); border-color: var(--accent); color: #1a0d04; }
+    button.fire.on { background: #e5484d; border-color: #e5484d; color: #fff; }
+    button:disabled { opacity: .4; cursor: default; }
+    label.throttle { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--muted); padding: 0 8px; letter-spacing: .1em; }
+    input[type=range] { accent-color: var(--accent); width: 130px; }
+
+    /* 3D labels */
+    .label { position: fixed; left: 0; top: 0; pointer-events: none; opacity: 0; font-size: 12px; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+    .label::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 10px var(--accent); flex: none; }
+    .label span { background: #0b0f16d0; border: 1px solid var(--line); padding: 5px 9px; border-radius: 6px; }
+    .note { position: fixed; bottom: 92px; left: 50%; transform: translateX(-50%); color: var(--muted); font-size: 11px; pointer-events: none; }
+  </style>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.184.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.184.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="stage"></div>
+  <a class="back" href="../">&larr; All demos</a>
+
+  <div class="title">
+    <small>DEMO 05 · ANIME.JS + THREE.JS</small>
+    <h1>Full-Flow Methalox Engine</h1>
+    <p>Simplified model of a Raptor-style full-flow staged-combustion engine, built from basic shapes. Shows the idea, not an exact replica. Drag to orbit, scroll to zoom.</p>
+  </div>
+
+  <div class="tele">
+    <div><span>STATUS</span><b id="status">SAFE</b></div>
+    <div><span>THRUST</span><b><em id="t-thrust">0</em><i>tf</i></b></div>
+    <div><span>CHAMBER PRESSURE</span><b><em id="t-pc">0</em><i>bar</i></b></div>
+    <div><span>TURBOPUMP</span><b><em id="t-rpm">0</em><i>rpm</i></b></div>
+    <div><span>GIMBAL</span><b><em id="t-gimbal">0.0°</em></b></div>
+  </div>
+
+  <div class="note">Numbers are made up for illustration.</div>
+  <div class="controls">
+    <button class="fire" id="fire">IGNITE</button>
+    <label class="throttle">THROTTLE <input type="range" id="throttle" min="40" max="100" value="100"> <b id="throttle-v">100%</b></label>
+    <button id="gimbal">GIMBAL TEST</button>
+    <button id="explode">EXPLODED VIEW</button>
+    <button id="spin">AUTO-ROTATE: ON</button>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+    import { animate, createTimeline, stagger, utils } from '../../dist/modules/index.js';
+    // Side-effect import: lets animate() accept three.js meshes, groups, materials, lights and cameras.
+    import '../../dist/modules/adapters/three/index.js';
+
+    // ------------------------------------------------------------------
+    // Scene setup (plain three.js)
+    // ------------------------------------------------------------------
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    document.getElementById('stage').appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+    scene.environmentIntensity = 0.7;
+
+    const camera = new THREE.PerspectiveCamera(38, innerWidth / innerHeight, 0.1, 300);
+    camera.position.set(16, 2, 24);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.target.set(0, -3.2, 0); // aim below the engine so the flame stays in view
+    controls.enableDamping = true;
+    controls.autoRotate = true;
+    controls.autoRotateSpeed = 0.5;
+    controls.minDistance = 3;
+    controls.maxDistance = 40;
+
+    scene.add(new THREE.AmbientLight(0x8899aa, 0.3));
+    const key = new THREE.DirectionalLight(0xffffff, 2.2);
+    key.position.set(5, 8, 6);
+    scene.add(key);
+    const rim = new THREE.DirectionalLight(0x6fa8ff, 1.6);
+    rim.position.set(-6, 2, -6);
+    scene.add(rim);
+
+    // Starfield
+    {
+      const pts = new Float32Array(1800 * 3);
+      for (let i = 0; i < pts.length; i += 3) {
+        const v = new THREE.Vector3().randomDirection().multiplyScalar(60 + Math.random() * 60);
+        pts.set([v.x, v.y, v.z], i);
+      }
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(pts, 3));
+      scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0x8899bb, size: 0.15, sizeAttenuation: true })));
+    }
+
+    // ------------------------------------------------------------------
+    // Materials
+    // ------------------------------------------------------------------
+    const steel = new THREE.MeshStandardMaterial({ color: 0xa4acb6, metalness: 1, roughness: 0.3 });
+    const darkSteel = new THREE.MeshStandardMaterial({ color: 0x40464f, metalness: 0.9, roughness: 0.45 });
+    const copper = new THREE.MeshStandardMaterial({ color: 0xc07a45, metalness: 1, roughness: 0.32 });
+    // Materials that glow when hot: emissiveIntensity is animated by anime.js
+    const hot = (color, glow) => new THREE.MeshStandardMaterial({ color, metalness: 0.95, roughness: 0.36, emissive: glow, emissiveIntensity: 0, side: THREE.DoubleSide });
+    const nozzleMat = hot(0x5d636b, 0xff4a12);
+    const chamberMat = hot(0x9aa2ac, 0xff6a20);
+    const preOxMat = hot(0x8e969f, 0x5fb4ff);
+    const preFuelMat = hot(0x8e969f, 0xff8a3a);
+
+    const mesh = (geo, mat, x = 0, y = 0, z = 0) => { const m = new THREE.Mesh(geo, mat); m.position.set(x, y, z); return m; };
+    const lathe = (pts, mat, segs = 72) => new THREE.Mesh(new THREE.LatheGeometry(pts.map(([r, y]) => new THREE.Vector2(r, y)), segs), mat);
+    const ring = (r, tube, y, mat) => { const m = mesh(new THREE.TorusGeometry(r, tube, 12, 72), mat, 0, y, 0); m.rotation.x = Math.PI / 2; return m; };
+    const anchor = (parent, x, y, z) => { const o = new THREE.Object3D(); o.position.set(x, y, z); parent.add(o); return o; };
+
+    // ------------------------------------------------------------------
+    // Engine parts. Each part is a Group so anime.js can move it as one piece.
+    // `root` holds the fixed mount; `pivot` holds everything that gimbals.
+    // ------------------------------------------------------------------
+    const root = new THREE.Group();
+    scene.add(root);
+    const pivot = new THREE.Group();
+    pivot.position.y = 0.45;
+    root.add(pivot);
+    const engine = new THREE.Group();
+    engine.position.y = -0.45;
+    pivot.add(engine);
+
+    const parts = [];   // { obj, home, off } for the exploded view
+    const labels = [];  // { el, anchor } for the HTML labels
+    const addPart = (obj, parent, off) => { parent.add(obj); parts.push({ obj, home: obj.position.clone(), off: new THREE.Vector3(...off) }); return obj; };
+    const addLabel = (text, anchorObj) => {
+      const el = document.createElement('div');
+      el.className = 'label';
+      el.innerHTML = `<span>${text}</span>`;
+      document.body.appendChild(el);
+      labels.push({ el, anchor: anchorObj });
+    };
+
+    // Gimbal mount (the thrust structure attachment)
+    const mount = new THREE.Group();
+    mount.add(mesh(new THREE.BoxGeometry(1.1, 0.08, 1.1), darkSteel, 0, 1.05, 0));
+    mount.add(mesh(new THREE.CylinderGeometry(0.16, 0.22, 0.5, 32), steel, 0, 0.78, 0));
+    mount.add(mesh(new THREE.SphereGeometry(0.21, 32, 16), copper, 0, 0.47, 0));
+    for (let i = 0; i < 4; i++) {
+      const a = i / 4 * Math.PI * 2 + Math.PI / 4;
+      const strut = mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.75, 8), darkSteel, Math.cos(a) * 0.3, 0.78, Math.sin(a) * 0.3);
+      strut.rotation.set(Math.sin(a) * 0.45, 0, -Math.cos(a) * 0.45);
+      mount.add(strut);
+    }
+    addPart(mount, root, [0, 2.0, 0]);
+    addLabel('Gimbal mount', anchor(mount, 0.25, 0.5, 0));
+
+    // Injector head (dome on top of the chamber)
+    const injector = new THREE.Group();
+    injector.add(mesh(new THREE.SphereGeometry(0.52, 64, 24, 0, Math.PI * 2, 0, Math.PI / 2), steel));
+    injector.add(ring(0.53, 0.05, 0, darkSteel));
+    injector.add(mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.2, 24), darkSteel, 0, 0.55, 0));
+    addPart(injector, engine, [0, 1.15, 0]);
+    addLabel('Injector head', anchor(injector, 0.4, 0.35, 0));
+
+    // Combustion chamber + throat
+    const chamber = new THREE.Group();
+    chamber.add(lathe([[0.5, 0], [0.5, -0.95], [0.44, -1.2], [0.3, -1.45]], chamberMat));
+    chamber.add(ring(0.51, 0.035, -0.05, darkSteel));
+    chamber.add(ring(0.51, 0.035, -0.5, copper));
+    chamber.add(ring(0.51, 0.035, -0.9, darkSteel));
+    addPart(chamber, engine, [0, 0, 0]);
+    addLabel('Combustion chamber', anchor(chamber, 0.52, -0.6, 0));
+
+    // Nozzle bell: profile widens from the throat to the exit
+    const nozzle = new THREE.Group();
+    const NOZ_TOP = -1.45, NOZ_LEN = 2.35;
+    const nozzleR = t => 0.3 + 1.05 * Math.pow(t, 0.62);
+    const profile = Array.from({ length: 40 }, (_, i) => { const t = i / 39; return [nozzleR(t), NOZ_TOP - NOZ_LEN * t]; });
+    nozzle.add(lathe(profile, nozzleMat, 96));
+    [0.12, 0.3, 0.5, 0.7, 0.88].forEach(t => nozzle.add(ring(nozzleR(t) + 0.01, 0.012, NOZ_TOP - NOZ_LEN * t, copper)));
+    nozzle.add(ring(nozzleR(1), 0.035, NOZ_TOP - NOZ_LEN, darkSteel));
+    nozzle.add(ring(nozzleR(0.02) + 0.02, 0.05, NOZ_TOP - 0.05, darkSteel));
+    addPart(nozzle, engine, [0, -1.6, 0]);
+    addLabel('Regen-cooled nozzle', anchor(nozzle, nozzleR(0.65), NOZ_TOP - NOZ_LEN * 0.65, 0));
+
+    // Turbopumps (one per propellant), each with a preburner and an exposed turbine
+    const turbines = [];
+    const makePump = (side, preMat, name, preName) => {
+      const g = new THREE.Group();
+      g.position.x = side * 0.98;
+      const housing = mesh(new THREE.CylinderGeometry(0.26, 0.26, 0.75, 48), steel, 0, -0.55, 0);
+      g.add(housing);
+      const volute = ring(0.3, 0.09, -0.85, darkSteel);
+      g.add(volute);
+      g.add(mesh(new THREE.CylinderGeometry(0.11, 0.13, 0.45, 24), darkSteel, 0, -1.15, 0));
+      g.add(mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.4, 12), darkSteel, 0, -0.05, 0));
+
+      // Turbine wheel: disc + angled blades, spun every frame
+      const turbine = new THREE.Group();
+      turbine.position.y = -0.12;
+      turbine.add(mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.04, 40), copper));
+      for (let i = 0; i < 20; i++) {
+        const a = i / 20 * Math.PI * 2;
+        const blade = mesh(new THREE.BoxGeometry(0.1, 0.07, 0.018), copper, Math.cos(a) * 0.22, 0, Math.sin(a) * 0.22);
+        blade.rotation.set(0.5, -a, 0);
+        turbine.add(blade);
+      }
+      g.add(turbine);
+      turbines.push({ obj: turbine, dir: side });
+
+      // Preburner: small combustion chamber that drives the turbine
+      const pre = mesh(new THREE.CylinderGeometry(0.15, 0.18, 0.45, 32), preMat, 0, 0.25, 0);
+      g.add(pre);
+      g.add(mesh(new THREE.SphereGeometry(0.15, 32, 12, 0, Math.PI * 2, 0, Math.PI / 2), preMat, 0, 0.47, 0));
+
+      addPart(g, engine, [side * 1.9, 0.2, 0]);
+      addLabel(name, anchor(g, side * 0.28, -0.55, 0));
+      addLabel(preName, anchor(g, side * 0.18, 0.3, 0));
+    };
+    makePump(1, preOxMat, 'LOX turbopump', 'Oxidizer-rich preburner');
+    makePump(-1, preFuelMat, 'Methane turbopump', 'Fuel-rich preburner');
+
+    // Plumbing: hot-gas ducts and propellant lines (curved tubes)
+    const plumbing = new THREE.Group();
+    const tube = (pts, r, mat) => plumbing.add(new THREE.Mesh(
+      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts.map(p => new THREE.Vector3(...p))), 48, r, 14), mat));
+    [1, -1].forEach(s => {
+      tube([[s * .98, .5, 0], [s * .95, .78, 0], [s * .45, .8, 0], [s * .18, .48, 0]], 0.075, steel);           // preburner → injector
+      tube([[s * 1.2, -.85, .15], [s * 1.0, -.6, .5], [s * .62, -.3, .48], [s * .45, -.1, .25]], 0.06, darkSteel); // pump → chamber
+    });
+    plumbing.add(ring(0.56, 0.06, -0.15, steel)); // manifold around the chamber
+    addPart(plumbing, engine, [0, 0.3, 2.0]);
+    addLabel('Hot-gas ducts', anchor(plumbing, 0, 0.8, 0));
+
+    // ------------------------------------------------------------------
+    // Exhaust plume: additive, transparent cones + shock diamonds
+    // ------------------------------------------------------------------
+    const gradientTexture = stops => {
+      const c = document.createElement('canvas');
+      c.width = 4; c.height = 256;
+      const ctx = c.getContext('2d');
+      const g = ctx.createLinearGradient(0, 0, 0, 256);
+      stops.forEach(([o, col]) => g.addColorStop(o, col));
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 4, 256);
+      return new THREE.CanvasTexture(c);
+    };
+    const plumeTex = gradientTexture([[0, 'rgba(255,255,255,1)'], [.12, 'rgba(255,220,170,.9)'], [.45, 'rgba(255,130,50,.45)'], [1, 'rgba(255,60,0,0)']]);
+    const glowMat = (color, opacity) => new THREE.MeshBasicMaterial({
+      color, map: plumeTex, transparent: true, opacity, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide,
+    });
+    const cone = (top, bottom, h, mat) => {
+      const geo = new THREE.CylinderGeometry(top, bottom, h, 64, 1, true);
+      geo.translate(0, -h / 2, 0);
+      return new THREE.Mesh(geo, mat);
+    };
+
+    const plume = new THREE.Group();          // anime.js scales this with thrust
+    plume.position.y = NOZ_TOP - NOZ_LEN;
+    engine.add(plume);
+    const flicker = new THREE.Group();        // tiny random jitter every frame
+    plume.add(flicker);
+
+    const outerMat = glowMat(0xff9a55, 0);
+    const coreMat = glowMat(0xa9cbff, 0);
+    flicker.add(cone(1.3, 0.9, 8, outerMat));
+    flicker.add(cone(1.2, 0.25, 3.6, coreMat));
+
+    const diamondMats = [];
+    const diamonds = [-1.1, -2.2, -3.2, -4.1].map((y, i) => {
+      const m = new THREE.MeshBasicMaterial({ color: 0xffe2b0, transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false });
+      diamondMats.push(m);
+      const d = mesh(new THREE.OctahedronGeometry(0.32 - i * 0.04, 0), m, 0, y, 0);
+      d.scale.set(1, 1.9, 1);
+      flicker.add(d);
+      return d;
+    });
+
+    // Glow sprite at the nozzle exit + a real light so the nozzle and pumps get lit by the flame
+    const spriteTex = (() => {
+      const c = document.createElement('canvas'); c.width = c.height = 128;
+      const ctx = c.getContext('2d');
+      const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+      g.addColorStop(0, 'rgba(255,200,140,1)'); g.addColorStop(.4, 'rgba(255,110,40,.35)'); g.addColorStop(1, 'rgba(255,60,0,0)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, 128, 128);
+      return new THREE.CanvasTexture(c);
+    })();
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: spriteTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true, opacity: 0 }));
+    glow.scale.setScalar(5);
+    plume.add(glow);
+
+    const flameLight = new THREE.PointLight(0xff7a30, 0, 18, 1.6);
+    flameLight.position.y = -0.6;
+    plume.add(flameLight);
+
+    utils.set(plume, { scaleX: 0.3, scaleY: 0.05, scaleZ: 0.3 });
+
+    // ------------------------------------------------------------------
+    // State that anime.js tweens and the render loop reads every frame
+    // ------------------------------------------------------------------
+    const state = { spin: 0, shake: 0 };
+    const tele = { thrust: 0, pc: 0, rpm: 0 };
+    let running = false, exploded = false, busy = true; // busy until the intro finishes
+    let throttle = 1;
+
+    const $ = id => document.getElementById(id);
+    const setStatus = (text, color) => { $('status').textContent = text; $('status').style.color = color; };
+
+    // Thrust → plume size and telemetry targets
+    const plumeTargets = t => ({ scaleX: 0.82 + 0.18 * t, scaleY: 0.55 + 0.45 * t, scaleZ: 0.82 + 0.18 * t });
+    const teleTargets = t => ({ thrust: 230 * t, pc: 300 * t, rpm: 34000 * (0.55 + 0.45 * t) });
+
+    // ------------------------------------------------------------------
+    // Intro: parts fly in from far away and assemble, camera dollies in
+    // ------------------------------------------------------------------
+    parts.forEach(p => p.obj.position.copy(p.home).addScaledVector(p.off.lengthSq() ? p.off : new THREE.Vector3(0, -2, 0), 4));
+    createTimeline({ defaults: { ease: 'outExpo' }, onComplete: () => busy = false })
+      .add(camera, { x: 7.6, y: -1.2, z: 11.5, duration: 3200, ease: 'inOutQuart' }, 0)
+      .add(parts.map(p => p.obj), {
+        x: (o, i) => parts[i].home.x, y: (o, i) => parts[i].home.y, z: (o, i) => parts[i].home.z,
+        rotateY: { from: -120 },
+        duration: 1800,
+      }, stagger(140, { start: 600 }));
+
+    // ------------------------------------------------------------------
+    // Controls
+    // ------------------------------------------------------------------
+    $('fire').onclick = () => (running ? shutdown() : ignite());
+
+    function ignite() {
+      if (busy) return;
+      if (exploded) toggleExplode(); // reassemble first
+      running = busy = true;
+      $('fire').classList.add('on');
+      $('fire').textContent = 'SHUTDOWN';
+      setStatus('IGNITION', '#ffcc66');
+
+      createTimeline({ onComplete: () => { busy = false; setStatus('MAINSTAGE', '#ff7a2a'); } })
+        // 1. Turbopumps spin up
+        .add(state, { spin: 1, duration: 1800, ease: 'inQuad' }, 0)
+        // 2. Preburners light
+        .add([preOxMat, preFuelMat], { emissiveIntensity: 2.2, duration: 500, ease: 'outQuad' }, 700)
+        // 3. Main chamber ignites: plume grows with an elastic overshoot
+        .add(plume, { ...plumeTargets(throttle), duration: 1100, ease: 'outElastic(1, .55)' }, 1200)
+        .add(outerMat, { opacity: 0.85, duration: 400 }, 1200)
+        .add(coreMat, { opacity: 0.9, duration: 400 }, 1250)
+        .add(glow.material, { opacity: 0.9, duration: 400 }, 1200)
+        .add(flameLight, { intensity: 60, duration: 500 }, 1200)
+        .add(diamondMats, { opacity: (m, i) => 0.75 - i * 0.15, duration: 400, delay: stagger(90) }, 1350)
+        .add(state, { shake: 1, duration: 300 }, 1200)
+        .add(tele, { ...teleTargets(throttle), duration: 1600, ease: 'outExpo' }, 1200)
+        // 4. Metal heats up slowly
+        .add([nozzleMat, chamberMat], { emissiveIntensity: 0.22, duration: 3500, ease: 'outSine' }, 1500);
+    }
+
+    function shutdown() {
+      if (busy) return;
+      running = false; busy = true;
+      $('fire').classList.remove('on');
+      $('fire').textContent = 'IGNITE';
+      setStatus('SHUTDOWN', '#e5484d');
+
+      createTimeline({ onComplete: () => { busy = false; setStatus('SAFE', '#6ee7a8'); } })
+        .add([outerMat, coreMat, glow.material, ...diamondMats], { opacity: 0, duration: 350, ease: 'inQuad' }, 0)
+        .add(plume, { scaleY: 0.05, scaleX: 0.3, scaleZ: 0.3, duration: 400, ease: 'inQuad' }, 0)
+        .add(flameLight, { intensity: 0, duration: 400 }, 0)
+        .add(state, { shake: 0, duration: 400 }, 0)
+        .add([preOxMat, preFuelMat], { emissiveIntensity: 0, duration: 600 }, 0)
+        .add(tele, { thrust: 0, pc: 0, duration: 800, ease: 'outQuad' }, 0)
+        .add(tele, { rpm: 0, duration: 3000, ease: 'outQuad' }, 0)
+        .add(state, { spin: 0, duration: 3000, ease: 'outQuad' }, 0)
+        // Nozzle keeps glowing and cools off slowly
+        .add([nozzleMat, chamberMat], { emissiveIntensity: 0, duration: 5000, ease: 'outQuad' }, 0);
+    }
+
+    $('throttle').oninput = e => {
+      throttle = e.target.value / 100;
+      $('throttle-v').textContent = e.target.value + '%';
+      if (!running || busy) return;
+      animate(plume, { ...plumeTargets(throttle), duration: 700, ease: 'outCubic', composition: 'replace' });
+      animate(tele, { ...teleTargets(throttle), duration: 900, ease: 'outCubic', composition: 'replace' });
+      animate(outerMat, { opacity: 0.55 + 0.3 * throttle, duration: 500, composition: 'replace' });
+    };
+
+    // Gimbal test: tilt the engine in a + pattern, like a pre-flight steering check
+    $('gimbal').onclick = () => {
+      if (busy && !running) return;
+      $('gimbal').disabled = true;
+      animate(pivot, {
+        rotateX: [0, 8, -8, 0, 0, 0],
+        rotateZ: [0, 0, 0, 8, -8, 0],
+        duration: 5000, ease: 'inOutSine',
+        onComplete: () => $('gimbal').disabled = false,
+      });
+    };
+
+    // Exploded view: every part slides out along its own direction, labels fade in
+    $('explode').onclick = () => toggleExplode();
+    function toggleExplode() {
+      if (busy || (running && !exploded)) return; // not during the intro, and not while firing
+      exploded = !exploded;
+      $('explode').textContent = exploded ? 'ASSEMBLE' : 'EXPLODED VIEW';
+      createTimeline()
+        .add(parts.map(p => p.obj), {
+          x: (o, i) => parts[i].home.x + (exploded ? parts[i].off.x : 0),
+          y: (o, i) => parts[i].home.y + (exploded ? parts[i].off.y : 0),
+          z: (o, i) => parts[i].home.z + (exploded ? parts[i].off.z : 0),
+          duration: 1300, ease: 'inOutQuart',
+        }, stagger(70, { from: exploded ? 'first' : 'last' }))
+        .add(labels.map(l => l.el), {
+          opacity: exploded ? 1 : 0, x: exploded ? [-10, 0] : 0,
+          duration: 400, ease: 'outQuad',
+        }, stagger(60, { start: exploded ? 700 : 0 }))
+        .add(camera, { ...(exploded ? { x: 9.5, y: 0, z: 14 } : { x: 7.6, y: -1.2, z: 11.5 }), duration: 1400, ease: 'inOutQuart' }, 0);
+    }
+
+    $('spin').onclick = () => {
+      controls.autoRotate = !controls.autoRotate;
+      $('spin').textContent = 'AUTO-ROTATE: ' + (controls.autoRotate ? 'ON' : 'OFF');
+    };
+
+    // ------------------------------------------------------------------
+    // Render loop: apply continuous effects, project labels, draw
+    // ------------------------------------------------------------------
+    const timer = new THREE.Timer();
+    const v = new THREE.Vector3();
+    renderer.setAnimationLoop(time => {
+      timer.update(time);
+      const dt = timer.getDelta();
+      const t = timer.getElapsed();
+
+      turbines.forEach(tb => tb.obj.rotation.y += tb.dir * state.spin * 28 * dt);
+
+      // Flame flicker
+      const n = Math.sin(t * 61) * 0.5 + Math.sin(t * 37.3) * 0.5;
+      flicker.scale.set(1 + n * 0.025, 1 + Math.sin(t * 43.7) * 0.04, 1 + n * 0.025);
+      diamonds.forEach((d, i) => d.position.y = [-1.1, -2.2, -3.2, -4.1][i] + Math.sin(t * 30 + i) * 0.04);
+      glow.material.rotation = t * 0.5;
+
+      // Telemetry readout
+      $('t-thrust').textContent = Math.round(tele.thrust);
+      $('t-pc').textContent = Math.round(tele.pc);
+      $('t-rpm').textContent = Math.round(tele.rpm).toLocaleString();
+      $('t-gimbal').textContent = Math.hypot(THREE.MathUtils.radToDeg(pivot.rotation.x), THREE.MathUtils.radToDeg(pivot.rotation.z)).toFixed(1) + '°';
+
+      controls.update();
+
+      // Camera shake while firing (added just for this frame, then removed)
+      const s = state.shake * 0.012 * (0.6 + throttle * 0.4);
+      const sx = (Math.random() - .5) * s, sy = (Math.random() - .5) * s;
+      camera.position.x += sx; camera.position.y += sy;
+      renderer.render(scene, camera);
+      camera.position.x -= sx; camera.position.y -= sy;
+
+      // Move HTML labels to their 3D anchor points
+      labels.forEach(({ el, anchor }) => {
+        anchor.getWorldPosition(v).project(camera);
+        const x = (v.x * 0.5 + 0.5) * innerWidth, y = (-v.y * 0.5 + 0.5) * innerHeight;
+        el.style.left = x + 'px';
+        el.style.top = (y - 6) + 'px';
+      });
+    });
+
+    addEventListener('resize', () => {
+      camera.aspect = innerWidth / innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(innerWidth, innerHeight);
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demo 1: Product Landing Page / Anime.js</title>
+  <style>
+    :root { --bg: #0b0d17; --fg: #f2f3f7; --muted: #8a8fa8; --a: #ff4b6e; --b: #5ce1e6; --c: #ffd166; }
+    * { box-sizing: border-box; margin: 0; }
+    body { background: var(--bg); color: var(--fg); font-family: system-ui, sans-serif; overflow-x: hidden; }
+    a.back { position: fixed; top: 16px; left: 16px; color: var(--muted); text-decoration: none; font-size: 14px; z-index: 10; }
+
+    /* Hero */
+    .hero { height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 28px; position: relative; }
+    .logo { width: 120px; height: 120px; }
+    .logo path, .logo circle { fill: none; stroke: var(--b); stroke-width: 4; stroke-linecap: round; stroke-linejoin: round; }
+    h1 { font-size: clamp(40px, 8vw, 96px); font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+    h1 .char { display: inline-block; }
+    .tagline { color: var(--muted); font-size: 20px; max-width: 520px; }
+    .cta { padding: 16px 36px; border: 0; border-radius: 999px; background: var(--a); color: white; font-size: 18px; font-weight: 600; cursor: pointer; }
+    .scroll-hint { position: absolute; bottom: 32px; color: var(--muted); font-size: 13px; letter-spacing: .2em; }
+    .blob { position: absolute; width: 380px; height: 380px; border-radius: 50%; filter: blur(80px); opacity: .35; z-index: -1; }
+
+    /* Features */
+    section { padding: 120px 8vw; }
+    h2 { font-size: 44px; margin-bottom: 48px; }
+    .features { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; }
+    .card { background: #151829; border: 1px solid #23273d; border-radius: 20px; padding: 32px; }
+    .card .icon { font-size: 36px; margin-bottom: 16px; }
+    .card h3 { margin-bottom: 8px; }
+    .card p { color: var(--muted); line-height: 1.5; }
+
+    /* Stats */
+    .stats { display: flex; flex-wrap: wrap; gap: 48px; justify-content: space-around; text-align: center; }
+    .stat b { display: block; font-size: 64px; color: var(--c); font-variant-numeric: tabular-nums; }
+    .stat span { color: var(--muted); }
+
+    /* Scroll progress bar */
+    .progress { position: fixed; top: 0; left: 0; height: 4px; width: 100%; background: linear-gradient(90deg, var(--a), var(--b)); transform-origin: left; transform: scaleX(0); z-index: 20; }
+    footer { padding: 80px; text-align: center; color: var(--muted); }
+  </style>
+</head>
+<body>
+  <div class="progress"></div>
+  <a class="back" href="../">&larr; All demos</a>
+
+  <header class="hero">
+    <div class="blob" style="background: var(--a); top: 10%; left: 10%"></div>
+    <div class="blob" style="background: var(--b); bottom: 10%; right: 10%"></div>
+    <svg class="logo" viewBox="0 0 120 120">
+      <circle cx="60" cy="60" r="52" />
+      <path d="M38 80 L60 34 L82 80 M46 64 H74" />
+    </svg>
+    <h1>Launch Faster</h1>
+    <p class="tagline">A pretend product, used to show text reveals, SVG drawing and scroll-triggered motion.</p>
+    <button class="cta">Get started</button>
+    <div class="scroll-hint">SCROLL &darr;</div>
+  </header>
+
+  <section>
+    <h2>Why people love it</h2>
+    <div class="features">
+      <div class="card"><div class="icon">⚡</div><h3>Fast</h3><p>Cards slide in as they scroll into view, one after another.</p></div>
+      <div class="card"><div class="icon">🎯</div><h3>Precise</h3><p>Each card waits a little longer than the one before it (a "stagger").</p></div>
+      <div class="card"><div class="icon">🧩</div><h3>Modular</h3><p>Only import the parts of the library you use.</p></div>
+      <div class="card"><div class="icon">🌈</div><h3>Delightful</h3><p>Hover a card to see a springy lift.</p></div>
+    </div>
+  </section>
+
+  <section>
+    <h2>By the numbers</h2>
+    <div class="stats">
+      <div class="stat"><b data-to="12500">0</b><span>teams</span></div>
+      <div class="stat"><b data-to="99">0</b><span>% uptime</span></div>
+      <div class="stat"><b data-to="340">0</b><span>integrations</span></div>
+    </div>
+  </section>
+
+  <footer>Built with Anime.js v4</footer>
+
+  <script type="module">
+    import { animate, createTimeline, stagger, splitText, svg, onScroll, utils, createSpring } from '../../dist/modules/index.js';
+
+    // 1. Intro: draw the logo, then reveal the headline letter by letter
+    const { chars } = splitText('h1', { chars: true });
+
+    createTimeline({ defaults: { ease: 'outExpo' } })
+      .add(svg.createDrawable('.logo circle, .logo path'), {
+        draw: ['0 0', '0 1'], duration: 1400, ease: 'inOutQuart',
+      }, stagger(250))
+      .add(chars, {
+        y: [{ from: '100%' }], opacity: { from: 0 }, rotate: { from: 25 },
+        duration: 900,
+      }, stagger(35, { start: 500 }))
+      .add('.tagline, .cta, .scroll-hint', {
+        y: { from: 30 }, opacity: { from: 0 }, duration: 800,
+      }, stagger(120, { start: '-=500' }));
+
+    // Floating background blobs
+    animate('.blob', {
+      x: () => utils.random(-80, 80), y: () => utils.random(-60, 60), scale: [1, 1.2],
+      duration: 4000, ease: 'inOutSine', loop: true, alternate: true, delay: stagger(800),
+    });
+
+    // Pulsing call-to-action
+    animate('.cta', { scale: [1, 1.06], duration: 900, loop: true, alternate: true, ease: 'inOutQuad', delay: 2500 });
+
+    // 2. Feature cards slide in when they scroll into view
+    animate('.card', {
+      y: { from: 80 }, opacity: { from: 0 }, duration: 900, ease: 'outBack',
+      delay: stagger(120),
+      autoplay: onScroll({ target: '.features' }),
+    });
+
+    // Springy hover
+    const spring = createSpring({ stiffness: 220, damping: 12 });
+    document.querySelectorAll('.card').forEach(card => {
+      card.onmouseenter = () => animate(card, { y: -10, scale: 1.03, ease: spring, composition: 'blend' });
+      card.onmouseleave = () => animate(card, { y: 0, scale: 1, ease: spring, composition: 'blend' });
+    });
+
+    // 3. Counters tick up when the stats are visible
+    document.querySelectorAll('.stat b').forEach(el => {
+      const counter = { value: 0 };
+      animate(counter, {
+        value: +el.dataset.to, duration: 2000, ease: 'outQuart',
+        onUpdate: () => el.textContent = Math.round(counter.value).toLocaleString(),
+        autoplay: onScroll({ target: el }),
+      });
+    });
+
+    // 4. Top progress bar synced to page scroll
+    animate('.progress', {
+      scaleX: [0, 1], ease: 'linear',
+      autoplay: onScroll({ target: document.body, enter: 'top top', leave: 'bottom bottom', sync: true }),
+    });
+  </script>
+</body>
+</html>

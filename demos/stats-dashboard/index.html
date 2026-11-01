@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demo 2: Animated Dashboard / Anime.js</title>
+  <style>
+    :root { --bg: #f4f5fa; --card: #fff; --fg: #1d2033; --muted: #7c8199; --a: #6c5ce7; --b: #00b894; --c: #fd79a8; --d: #fdcb6e; }
+    * { box-sizing: border-box; margin: 0; }
+    body { background: var(--bg); color: var(--fg); font-family: system-ui, sans-serif; padding: 40px 5vw; }
+    a.back { color: var(--muted); text-decoration: none; font-size: 14px; }
+    header { display: flex; justify-content: space-between; align-items: center; margin: 16px 0 32px; flex-wrap: wrap; gap: 16px; }
+    h1 { font-size: 32px; }
+    button { padding: 12px 22px; border: 0; border-radius: 12px; background: var(--a); color: #fff; font-weight: 600; font-size: 15px; cursor: pointer; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+    .panel { background: var(--card); border-radius: 18px; padding: 24px; box-shadow: 0 4px 20px #1d203310; }
+    .panel h3 { font-size: 14px; color: var(--muted); font-weight: 500; margin-bottom: 12px; }
+    .kpi b { font-size: 40px; font-variant-numeric: tabular-nums; }
+    .kpi small { display: block; margin-top: 6px; font-weight: 600; }
+    .wide { grid-column: span 2; }
+    @media (max-width: 640px) { .wide { grid-column: span 1; } }
+
+    /* Bar chart */
+    .bars { display: flex; align-items: flex-end; gap: 10px; height: 220px; }
+    .bar { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; }
+    .bar i { width: 100%; height: 100%; border-radius: 8px 8px 4px 4px; background: linear-gradient(var(--a), #a29bfe); transform-origin: bottom; }
+    .bar span { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+    /* Donut */
+    .donut-wrap { display: flex; align-items: center; gap: 24px; }
+    .donut { width: 160px; height: 160px; transform: rotate(-90deg); }
+    .donut circle { fill: none; stroke-width: 22; }
+    .legend div { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0; }
+    .legend i { width: 12px; height: 12px; border-radius: 3px; }
+
+    /* Line chart */
+    .line svg { width: 100%; height: 200px; overflow: visible; }
+    .line path.stroke { fill: none; stroke: var(--b); stroke-width: 3; stroke-linecap: round; }
+    .line path.area { fill: url(#fade); stroke: none; }
+    .line circle { fill: #fff; stroke: var(--b); stroke-width: 3; }
+
+    /* Activity list */
+    .activity li { list-style: none; padding: 12px 0; border-bottom: 1px solid #eef0f6; display: flex; justify-content: space-between; font-size: 14px; }
+    .activity ul { padding: 0; }
+  </style>
+</head>
+<body>
+  <a class="back" href="../">&larr; All demos</a>
+  <header>
+    <h1>Sales Overview</h1>
+    <button id="refresh">🔄 Load new data</button>
+  </header>
+
+  <div class="grid">
+    <div class="panel kpi"><h3>Revenue</h3><b data-kpi="revenue">$0</b><small style="color: var(--b)">▲ vs last month</small></div>
+    <div class="panel kpi"><h3>Orders</h3><b data-kpi="orders">0</b><small style="color: var(--b)">▲ vs last month</small></div>
+    <div class="panel kpi"><h3>Visitors</h3><b data-kpi="visitors">0</b><small style="color: var(--c)">▼ vs last month</small></div>
+    <div class="panel kpi"><h3>Conversion</h3><b data-kpi="conversion">0%</b><small style="color: var(--b)">▲ vs last month</small></div>
+
+    <div class="panel wide"><h3>Monthly revenue</h3><div class="bars"></div></div>
+
+    <div class="panel"><h3>Traffic sources</h3>
+      <div class="donut-wrap">
+        <svg class="donut" viewBox="0 0 160 160"></svg>
+        <div class="legend"></div>
+      </div>
+    </div>
+
+    <div class="panel wide line"><h3>Daily active users</h3>
+      <svg viewBox="0 0 600 200" preserveAspectRatio="none">
+        <defs><linearGradient id="fade" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#00b894" stop-opacity=".3"/><stop offset="1" stop-color="#00b894" stop-opacity="0"/></linearGradient></defs>
+        <path class="area" /><path class="stroke" /><circle r="6" />
+      </svg>
+    </div>
+
+    <div class="panel activity"><h3>Recent activity</h3><ul></ul></div>
+  </div>
+
+  <script type="module">
+    import { animate, stagger, svg, utils, createSpring } from '../../dist/modules/index.js';
+
+    const r = utils.random;
+    const months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const sources = [['Search', 'var(--a)'], ['Social', 'var(--c)'], ['Direct', 'var(--b)'], ['Email', 'var(--d)']];
+
+    // --- Build static DOM ---
+    document.querySelector('.bars').innerHTML = months.map(m => `<div class="bar"><i></i><span>${m}</span></div>`).join('');
+    const C = 2 * Math.PI * 60;
+    document.querySelector('.donut').innerHTML = sources.map(([, c]) => `<circle cx="80" cy="80" r="60" style="stroke:${c}" />`).join('');
+    document.querySelector('.legend').innerHTML = sources.map(([n, c]) => `<div><i style="background:${c}"></i>${n} <b data-pct>0%</b></div>`).join('');
+
+    // State that the animations tween between
+    const kpis = { revenue: 0, orders: 0, visitors: 0, conversion: 0 };
+    const fmt = {
+      revenue: v => '$' + Math.round(v).toLocaleString(),
+      orders: v => Math.round(v).toLocaleString(),
+      visitors: v => Math.round(v).toLocaleString(),
+      conversion: v => v.toFixed(1) + '%',
+    };
+
+    const linePoints = Array.from({ length: 12 }, () => ({ y: 180 }));
+    const lineToPath = () => linePoints.map((p, i) => `${i ? 'L' : 'M'}${(i / 11) * 600},${p.y}`).join(' ');
+
+    const slices = svg.createDrawable('.donut circle');
+    utils.set(slices, { draw: '0 0' });
+
+    const bounce = createSpring({ stiffness: 120, damping: 11 });
+
+    function loadData() {
+      // KPIs: tween numbers in a plain JS object, write them to the DOM on each frame
+      animate(kpis, {
+        revenue: r(40000, 120000), orders: r(800, 3000), visitors: r(20000, 90000), conversion: r(15, 60) / 10,
+        duration: 1600, ease: 'outExpo',
+        onUpdate: () => {
+          for (const k in kpis) document.querySelector(`[data-kpi=${k}]`).textContent = fmt[k](kpis[k]);
+        },
+      });
+
+      // Bars grow with a springy overshoot, staggered left to right
+      animate('.bar i', {
+        scaleY: () => r(15, 100) / 100,
+        ease: bounce,
+        delay: stagger(50),
+      });
+
+      // Donut: each slice is a circle whose dash is drawn to its share
+      const shares = sources.map(() => r(10, 40));
+      const total = shares.reduce((a, b) => a + b);
+      let offset = 0;
+      const pcts = document.querySelectorAll('[data-pct]');
+      shares.forEach((s, i) => {
+        const start = offset / total, end = (offset + s) / total;
+        offset += s;
+        animate(slices[i], { draw: `${start} ${end}`, duration: 1200, ease: 'inOutQuart', delay: i * 80 });
+        const pct = { v: parseInt(pcts[i].textContent) };
+        animate(pct, { v: Math.round(s / total * 100), duration: 1200, onUpdate: () => pcts[i].textContent = pct.v + '%' });
+      });
+
+      // Line chart: tween every point's y, rebuild the path each frame
+      const $stroke = document.querySelector('.line .stroke');
+      const $area = document.querySelector('.line .area');
+      const $dot = document.querySelector('.line circle');
+      animate(linePoints, {
+        y: () => r(20, 170),
+        duration: 1200, ease: 'outElastic(1, .7)', delay: stagger(40),
+        onUpdate: () => {
+          const d = lineToPath();
+          $stroke.setAttribute('d', d);
+          $area.setAttribute('d', d + ' L600,200 L0,200 Z');
+          $dot.setAttribute('cx', 600);
+          $dot.setAttribute('cy', linePoints[11].y);
+        },
+      });
+
+      // Activity feed: old items slide out, new ones slide in
+      const names = ['Ava', 'Liam', 'Mia', 'Noah', 'Zoe', 'Leo', 'Ivy'];
+      const actions = ['bought Pro plan', 'left a 5★ review', 'upgraded to Team', 'started a trial', 'renewed yearly'];
+      const $ul = document.querySelector('.activity ul');
+      const fillFeed = () => {
+        $ul.innerHTML = Array.from({ length: 5 }, () =>
+          `<li><span><b>${names[r(0, 6)]}</b> ${actions[r(0, 4)]}</span><span style="color:var(--muted)">${r(1, 59)}m</span></li>`).join('');
+        animate('.activity li', { x: { from: 30 }, opacity: { from: 0 }, duration: 500, ease: 'outCubic', delay: stagger(70) });
+      };
+      if ($ul.children.length) {
+        animate('.activity li', { x: -30, opacity: 0, duration: 250, delay: stagger(30) }).then(fillFeed);
+      } else {
+        fillFeed();
+      }
+    }
+
+    // First load: panels pop in, then the data animates
+    animate('.panel', {
+      y: { from: 40 }, opacity: { from: 0 }, scale: { from: .96 },
+      duration: 700, ease: 'outCubic', delay: stagger(60),
+    });
+    setTimeout(loadData, 400);
+
+    document.getElementById('refresh').onclick = e => {
+      animate(e.currentTarget, { rotate: [0, 360], duration: 600, ease: 'inOutBack' });
+      loadData();
+    };
+  </script>
+</body>
+</html>
