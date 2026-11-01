@@ -175,6 +175,9 @@ class JSAnimation extends Timer {
 
     super(/** @type {TimerParams & AnimationParams} */(parameters), parent, parentPosition);
 
+    // Animations follow engine.reducedMotion unless they opt out with `reducedMotion: false`
+    this._reduceMotion = parameters.reducedMotion !== false;
+
     /** @type {Tween} */
     this._head;
     /** @type {Tween} */

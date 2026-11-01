@@ -5,7 +5,7 @@
  * @copyright 2026 - Julian Garnier
  */
 
-import { isNil, isUnd, stringStartsWith, isKey, isObj, isArr, isStr, toLowerCase, round, isFnc, isNum } from '../core/helpers.js';
+import { isNil, isUnd, stringStartsWith, isKey, isObj, isArr, isStr, toLowerCase, round, isNum, isFnc } from '../core/helpers.js';
 import { scope, globals } from '../core/globals.js';
 import { registerTargets } from '../core/targets.js';
 import { setValue, getFunctionValue } from '../core/values.js';
@@ -13,6 +13,7 @@ import { isBrowser, validTransforms, K, noop, transformsSymbol, shortTransforms,
 import { none } from '../easings/none.js';
 import { parseEaseString } from '../easings/eases/parser.js';
 import { addWAAPIAnimation } from './composition.js';
+import { engine } from '../engine/engine.js';
 
 /**
  * @import {
@@ -322,6 +323,20 @@ class WAAPIAnimation {
 
     if (scroll) {
       /** @type {ScrollObserver} */(this.autoplay).link(this);
+    } else if (autoplay && params.reducedMotion !== false && engine.reducesMotion) {
+      // Reduced motion: jump to the end state. Infinite loops are cut to one iteration and stopped there.
+      if (iterations === Infinity) {
+        // Pause 1ms before the end of the first iteration (pausing fires no finish event; a smaller
+        // offset can be rounded onto the loop boundary by the browser, which shows the start state)
+        this.forEach(anim => {
+          const timing = anim.effect.getTiming();
+          anim.pause();
+          anim.currentTime = +timing.delay + +timing.duration - 1;
+        });
+        this.paused = true;
+      } else {
+        this.complete();
+      }
     }
   }
 

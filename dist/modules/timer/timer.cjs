@@ -165,6 +165,8 @@ class Timer extends clock.Clock {
     this.iterationCount = timerIterationCount; // Number of loops
     /** @type {Boolean|ScrollObserver} */
     this._autoplay = parent ? false : values.setValue(autoplay, timerDefaults.autoplay);
+    /** @type {Boolean} Plain timers are often clocks or game loops, so they only reduce motion when asked to */
+    this._reduceMotion = parameters.reducedMotion === true;
     /** @type {Number} */
     this._offset = offsetPosition;
     /** @type {Number} */

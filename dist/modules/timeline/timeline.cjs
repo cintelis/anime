@@ -123,6 +123,8 @@ class Timeline extends timer.Timer {
     this._ease = tlPlaybackEase ? parser.parseEase(tlPlaybackEase) : null;
     /** @type {Number} */
     this.iterationDuration = 0;
+    // Timelines follow engine.reducedMotion unless they opt out with `reducedMotion: false`
+    this._reduceMotion = parameters.reducedMotion !== false;
   }
 
   /**

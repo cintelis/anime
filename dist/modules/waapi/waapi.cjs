@@ -15,6 +15,7 @@ var consts = require('../core/consts.cjs');
 var none = require('../easings/none.cjs');
 var parser = require('../easings/eases/parser.cjs');
 var composition = require('./composition.cjs');
+var engine = require('../engine/engine.cjs');
 
 /**
  * @import {
@@ -324,6 +325,20 @@ class WAAPIAnimation {
 
     if (scroll) {
       /** @type {ScrollObserver} */(this.autoplay).link(this);
+    } else if (autoplay && params.reducedMotion !== false && engine.engine.reducesMotion) {
+      // Reduced motion: jump to the end state. Infinite loops are cut to one iteration and stopped there.
+      if (iterations === Infinity) {
+        // Pause 1ms before the end of the first iteration (pausing fires no finish event; a smaller
+        // offset can be rounded onto the loop boundary by the browser, which shows the start state)
+        this.forEach(anim => {
+          const timing = anim.effect.getTiming();
+          anim.pause();
+          anim.currentTime = +timing.delay + +timing.duration - 1;
+        });
+        this.paused = true;
+      } else {
+        this.complete();
+      }
     }
   }
 
