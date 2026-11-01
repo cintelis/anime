@@ -58,6 +58,8 @@ const profile = await mkdtemp(path.join(tmpdir(), 'anime-tests-'));
 const chrome = spawn(chromeBin, [
   '--headless=new', `--remote-debugging-port=${debugPort}`, `--user-data-dir=${profile}`,
   '--no-first-run', '--no-default-browser-check', '--disable-gpu', '--window-size=1280,900',
+  // Keep timers and animation frames running at full rate (tests drive drags frame by frame)
+  '--disable-background-timer-throttling', '--disable-renderer-backgrounding', '--disable-backgrounding-occluded-windows',
   ...(process.env.CI ? ['--no-sandbox'] : []),
   'about:blank',
 ], { stdio: 'ignore' });
@@ -114,6 +116,9 @@ const send = (method, params = {}, sessionId) => new Promise(resolve => {
   pending.set(id, resolve);
   ws.send(JSON.stringify({ id, method, params, ...(sessionId ? { sessionId } : {}) }));
 });
+
+const version = (await send('Browser.getVersion')).result;
+console.log(`  Running tests in ${version.product}`);
 
 const { result: { targetId } } = await send('Target.createTarget', { url: 'about:blank' });
 const { result: { sessionId } } = await send('Target.attachToTarget', { targetId, flatten: true });
