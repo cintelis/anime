@@ -195,8 +195,8 @@
     }
   },
   "peerDependencies": {
-    "three": ">=0.150.0",
-    "@types/three": ">=0.150.0"
+    "@types/three": ">=0.150.0",
+    "three": ">=0.150.0"
   },
   "peerDependenciesMeta": {
     "three": {
@@ -207,16 +207,19 @@
     }
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@rollup/plugin-terser": "^0.4.4",
     "@types/mocha": "^10.0.10",
     "@types/node": "^24.3.0",
+    "@types/three": "^0.184.0",
     "browser-sync": "^3.0.4",
     "chai": "^4.3.10",
+    "eslint": "^9.39.5",
+    "globals": "^17.13.0",
     "mocha": "^10.2.0",
     "nodemon": "^3.1.10",
     "rollup": "^4.9.1",
     "three": "^0.184.0",
-    "@types/three": "^0.184.0",
     "tweaks": "^0.3.4",
     "typescript": "^5.9.2"
   },
@@ -225,10 +228,14 @@
     "dev:test": "npm run dev & npm run test:browser",
     "build": "rm -rf dist && build=true rollup -c && tsc -p tsconfig.types.json && echo '\\n\\033[32m✓ build completed\\n\\033[0m'",
     "test:browser": "browser-sync start --startPath tests/index.html --server --files 'dist/modules/**/*.js' 'tests/suites/**/*.js' --no-notify --directory",
-    "test:node": "node --allow-natives-syntax \"node_modules/.bin/mocha\" -u tdd --timeout 20000 \"./tests/suites/node.test.js\"",
+    "test:headless": "node tests/headless.js",
+    "test:node": "node --allow-natives-syntax node_modules/mocha/bin/mocha.js -u tdd --timeout 20000 ./tests/suites/node.test.js",
+    "test": "npm run test:node && npm run test:headless",
     "open:examples": "browser-sync start --startPath examples --server --no-notify --directory --files '**/*.js'",
     "typecheck": "tsc -p . && tsc -p tests && tsc -p examples",
     "typecheck:examples": "tsc -p examples",
-    "typecheck:tests": "tsc -p tests"
+    "typecheck:tests": "tsc -p tests",
+    "lint": "eslint src",
+    "typecheck:src": "tsc -p ."
   }
 }
