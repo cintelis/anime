@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Anime.js demos</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; }
+    body { background: #0b0d17; color: #f2f3f7; font-family: system-ui, sans-serif; padding: 60px 6vw; }
+    h1 { font-size: 48px; letter-spacing: -.02em; }
+    p.sub { color: #8a8fa8; margin: 12px 0 40px; max-width: 640px; line-height: 1.5; }
+    .list { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 20px; }
+    a.card { display: block; padding: 28px; background: #151829; border: 1px solid #23273d; border-radius: 20px; color: inherit; text-decoration: none; }
+    a.card b { display: block; font-size: 20px; margin: 10px 0 8px; }
+    a.card span { color: #8a8fa8; font-size: 14px; line-height: 1.5; }
+    a.card em { font-style: normal; font-size: 12px; color: #5ce1e6; display: block; margin-top: 14px; }
+    .n { font-size: 13px; color: #ff4b6e; font-weight: 700; }
+  </style>
+</head>
+<body>
+  <h1>What you can build with Anime.js</h1>
+  <p class="sub">Six demos built on this repo's <code>dist/modules</code>. Each one is a single HTML file you can open and read.</p>
+  <div class="list">
+    <a class="card" href="product-landing/"><span class="n">01</span><b>Product landing page</b><span>Animated logo, letter-by-letter headline, scroll-triggered cards, counters, scroll progress bar.</span><em>splitText · svg.createDrawable · onScroll · createSpring · createTimeline</em></a>
+    <a class="card" href="stats-dashboard/"><span class="n">02</span><b>Animated dashboard</b><span>KPI counters, springy bar chart, donut chart, live line chart, activity feed. Click "Load new data".</span><em>animate (JS objects) · stagger · svg.createDrawable · createSpring</em></a>
+    <a class="card" href="interactive-ui/"><span class="n">03</span><b>Interactive UI</b><span>Throwable sticky notes, eyes that follow the cursor, like/toggle/submit buttons, cars on a path.</span><em>createDraggable · createAnimatable · svg.createMotionPath · createTimeline</em></a>
+    <a class="card" href="loaders/"><span class="n">04</span><b>Loading animations</b><span>Eight loaders: dots, equalizer, grid ripple, drawing ring, orbit, progress, wave text, morphing shape.</span><em>stagger (grid) · loop · splitText · svg.createDrawable</em></a>
+    <a class="card" href="rocket-engine/"><span class="n">05</span><b>3D rocket engine</b><span>A Raptor-style engine in 3D: intro assembly, exploded view with labels, ignition sequence, throttle, gimbal test, live telemetry.</span><em>three.js adapter · createTimeline · stagger · animating materials, lights &amp; camera</em></a>
+    <a class="card" href="raptor-3/"><span class="n">06</span><b>Raptor 3 (3D replica)</b><span>Unofficial exterior model built from photos, with real specs: 250 tf sea level / 275 tf vacuum, startup sequence, exploded view, vacuum variant.</span><em>three.js adapter · createTimeline · stagger · .call() sequencing</em></a>
+  </div>
+  <script type="module">
+    import { animate, stagger } from '../dist/modules/index.js';
+    animate('a.card', { y: { from: 40 }, opacity: { from: 0 }, duration: 800, ease: 'outExpo', delay: stagger(100) });
+  </script>
+</body>
+</html>

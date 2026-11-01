@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Demo 3: Interactive UI / Anime.js</title>
+  <style>
+    :root { --bg: #fff8ef; --fg: #2d2a32; --muted: #8b8594; --a: #ff6b6b; --b: #4ecdc4; --c: #ffe66d; --d: #a29bfe; }
+    * { box-sizing: border-box; margin: 0; }
+    body { background: var(--bg); color: var(--fg); font-family: system-ui, sans-serif; padding: 40px 5vw; min-height: 100vh; }
+    a.back { color: var(--muted); text-decoration: none; font-size: 14px; }
+    h1 { margin: 16px 0 8px; font-size: 32px; }
+    p.sub { color: var(--muted); margin-bottom: 32px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; }
+    .box { background: #fff; border-radius: 20px; padding: 24px; box-shadow: 0 6px 24px #2d2a3212; min-height: 300px; position: relative; overflow: hidden; }
+    .box h3 { font-size: 15px; margin-bottom: 4px; }
+    .box small { color: var(--muted); display: block; margin-bottom: 16px; }
+
+    /* Sticky notes */
+    .board { position: relative; height: 230px; border: 2px dashed #eee3d3; border-radius: 12px; }
+    .note { position: absolute; width: 100px; height: 100px; padding: 10px; font-size: 13px; font-weight: 600; border-radius: 4px; cursor: grab; box-shadow: 0 4px 10px #0002; touch-action: none; }
+
+    /* Eyes */
+    .face { display: flex; justify-content: center; gap: 24px; margin-top: 30px; }
+    .eye { width: 90px; height: 90px; background: #fff; border: 4px solid var(--fg); border-radius: 50%; display: grid; place-items: center; }
+    .pupil { width: 34px; height: 34px; background: var(--fg); border-radius: 50%; }
+    .mouth { width: 80px; height: 40px; border: 4px solid var(--fg); border-top: 0; border-radius: 0 0 80px 80px; margin: 24px auto 0; }
+
+    /* Buttons */
+    .controls { display: flex; flex-direction: column; gap: 28px; align-items: center; padding-top: 10px; }
+    .like { position: relative; font-size: 46px; background: none; border: 0; cursor: pointer; filter: grayscale(1); }
+    .like.on { filter: none; }
+    .spark { position: absolute; left: 50%; top: 50%; width: 8px; height: 8px; border-radius: 50%; pointer-events: none; }
+    .toggle { width: 80px; height: 42px; border-radius: 999px; background: #ddd; border: 0; position: relative; cursor: pointer; }
+    .toggle i { position: absolute; top: 5px; left: 5px; width: 32px; height: 32px; background: #fff; border-radius: 50%; box-shadow: 0 2px 4px #0003; }
+    .submit { padding: 14px 32px; border-radius: 12px; border: 0; background: var(--d); color: #fff; font-weight: 700; font-size: 16px; cursor: pointer; min-width: 170px; }
+
+    /* Orbit */
+    .track-wrap { position: relative; }
+    .planet span { display: inline-block; transform: scaleX(-1); } /* emoji face left; flip so they drive forward */
+    .orbit svg { display: block; width: 100%; height: 230px; }
+    .orbit path { fill: none; stroke: #eee3d3; stroke-width: 2; stroke-dasharray: 6 6; }
+    .planet { position: absolute; left: 0; top: 0; width: 28px; height: 28px; margin: -14px 0 0 -14px; font-size: 24px; line-height: 28px; text-align: center; }
+  </style>
+</head>
+<body>
+  <a class="back" href="../">&larr; All demos</a>
+  <h1>Interactive UI</h1>
+  <p class="sub">Things you can touch: drag, hover, click.</p>
+
+  <div class="grid">
+    <div class="box">
+      <h3>Draggable sticky notes</h3>
+      <small>Throw them. They bounce off the edges with momentum.</small>
+      <div class="board">
+        <div class="note" style="background: var(--c); left: 10px; top: 10px">Buy milk 🥛</div>
+        <div class="note" style="background: var(--b); left: 130px; top: 60px">Ship demo 🚀</div>
+        <div class="note" style="background: var(--a); left: 220px; top: 20px; color: #fff">Call mom ☎️</div>
+      </div>
+    </div>
+
+    <div class="box">
+      <h3>Eyes that follow your cursor</h3>
+      <small>Smooth, lag-free tracking with createAnimatable.</small>
+      <div class="face">
+        <div class="eye"><div class="pupil"></div></div>
+        <div class="eye"><div class="pupil"></div></div>
+      </div>
+      <div class="mouth"></div>
+    </div>
+
+    <div class="box">
+      <h3>Micro-interactions</h3>
+      <small>Small feedback animations for buttons.</small>
+      <div class="controls">
+        <button class="like" aria-label="Like">❤️</button>
+        <button class="toggle" aria-label="Toggle"><i></i></button>
+        <button class="submit">Submit</button>
+      </div>
+    </div>
+
+    <div class="box orbit">
+      <h3>Motion along a path</h3>
+      <small>Elements follow an SVG path and rotate to face their direction.</small>
+      <div class="track-wrap">
+        <svg viewBox="0 0 300 200">
+          <path id="track" d="M150,20 C260,20 280,100 230,150 C180,200 120,200 70,150 C20,100 40,20 150,20 Z" />
+        </svg>
+        <div class="planet"><span>🚗</span></div>
+        <div class="planet"><span>🚕</span></div>
+        <div class="planet"><span>🚙</span></div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import { animate, createTimeline, createDraggable, createAnimatable, createSpring, stagger, svg, utils } from '../../dist/modules/index.js';
+
+    // 1. Draggable notes, kept inside the board, with a bouncy release
+    document.querySelectorAll('.note').forEach(note => {
+      utils.set(note, { rotate: utils.random(-8, 8) });
+      createDraggable(note, {
+        container: '.board',
+        releaseStiffness: 120,
+        releaseDamping: 10,
+        onGrab: self => animate(self.$target, { scale: 1.1, rotate: 0, zIndex: 10, duration: 200 }),
+        onRelease: self => animate(self.$target, { scale: 1, rotate: utils.random(-8, 8), zIndex: 1, duration: 400 }),
+      });
+    });
+
+    // 2. Eyes: createAnimatable returns setter functions you can call on every mouse move.
+    // The library smoothly eases toward the latest value instead of restarting an animation.
+    const eyes = [...document.querySelectorAll('.eye')].map(eye => ({
+      eye,
+      pupil: createAnimatable(eye.querySelector('.pupil'), { x: 350, y: 350, ease: 'out(3)' }),
+    }));
+    window.addEventListener('pointermove', e => {
+      eyes.forEach(({ eye, pupil }) => {
+        const b = eye.getBoundingClientRect();
+        const dx = e.clientX - (b.left + b.width / 2);
+        const dy = e.clientY - (b.top + b.height / 2);
+        const angle = Math.atan2(dy, dx);
+        const dist = Math.min(22, Math.hypot(dx, dy) / 8);
+        pupil.x(Math.cos(angle) * dist);
+        pupil.y(Math.sin(angle) * dist);
+      });
+    });
+    // Blink every few seconds
+    createTimeline({ loop: true, loopDelay: 2800 })
+      .add('.eye', { scaleY: [1, .1, 1], duration: 220, ease: 'inOutQuad' });
+
+    // 3a. Like button: pop + particle burst
+    const like = document.querySelector('.like');
+    like.onclick = () => {
+      like.classList.toggle('on');
+      animate(like, { scale: [1, .7, 1.3, 1], duration: 500, ease: 'outQuad' });
+      if (!like.classList.contains('on')) return;
+      const colors = ['#ff6b6b', '#4ecdc4', '#ffe66d', '#a29bfe'];
+      const sparks = Array.from({ length: 12 }, (_, i) => {
+        const s = document.createElement('span');
+        s.className = 'spark';
+        s.style.background = colors[i % 4];
+        like.appendChild(s);
+        return s;
+      });
+      animate(sparks, {
+        x: (_, i) => Math.cos(i / 12 * Math.PI * 2) * 50,
+        y: (_, i) => Math.sin(i / 12 * Math.PI * 2) * 50,
+        scale: [1.5, 0], duration: 700, ease: 'outExpo',
+        onComplete: () => sparks.forEach(s => s.remove()),
+      });
+    };
+
+    // 3b. Toggle switch with spring physics
+    const toggle = document.querySelector('.toggle');
+    let on = false;
+    const toggleSpring = createSpring({ stiffness: 300, damping: 15 });
+    toggle.onclick = () => {
+      on = !on;
+      animate(toggle.firstElementChild, { x: on ? 38 : 0, ease: toggleSpring });
+      animate(toggle, { backgroundColor: on ? '#4ecdc4' : '#dddddd', duration: 300 });
+    };
+
+    // 3c. Submit button: loading state, then success
+    const submit = document.querySelector('.submit');
+    submit.onclick = () => {
+      if (submit.disabled) return;
+      submit.disabled = true;
+      submit.textContent = 'Sending…';
+      createTimeline()
+        .add(submit, { scaleX: [1, .95, 1], duration: 300 })
+        .add(submit, { opacity: [1, .6, 1], duration: 600, loop: 2 })
+        .call(() => submit.textContent = '✓ Sent!')
+        .add(submit, { backgroundColor: '#4ecdc4', scale: [1.1, 1], duration: 500, ease: 'outBack' })
+        .add(submit, { backgroundColor: '#a29bfe', duration: 400, delay: 1200 })
+        .call(() => { submit.textContent = 'Submit'; submit.disabled = false; });
+    };
+
+    // 4. Cars drive along the SVG path. The second argument offsets each car's start point (0 to 1).
+    document.querySelectorAll('.planet').forEach((car, i) => {
+      animate(car, {
+        ...svg.createMotionPath('#track', i / 3),
+        duration: 6000, ease: 'linear', loop: true,
+      });
+    });
+  </script>
+</body>
+</html>
