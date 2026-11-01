@@ -3,7 +3,7 @@
 <p align="center">
   <picture align="center">
     <source media="(prefers-color-scheme: dark)" srcset="./assets/images/animejs-v4-logo-animation-dark.gif">
-    <img align="center" alt="Anime.js V4 logo animation" src="./assets/images/animejs-v4-logo-animation.gif" width="560">
+    <img align="center" alt="Anime.js V4 logo animation, followed by a showcase of staggered grids, SVG line drawing, shape morphing, spring physics and motion paths" src="./assets/images/animejs-v4-logo-animation.gif" width="560">
   </picture>
 </p>
 
