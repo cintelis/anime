@@ -28,6 +28,12 @@ suite('Node tests', () => {
     });
   });
 
+  // V8 renumbers some status bits between versions (e.g. 49 on older Node, 81 on Node 24 for the same
+  // "optimized by TurboFan" state), so check the stable "is optimized" bit instead of the whole value.
+  function isOptimized(status) {
+    return !!(status & (1 << 4)) && !(status & (1 << 3));
+  }
+
   function getOptimizationStatus(fn) {
     // @ts-ignore
     const status = %GetOptimizationStatus(fn);
@@ -75,7 +81,7 @@ suite('Node tests', () => {
     if (animationHasFastProperties) console.log('animation has fast properties');
     if (tweenHasFastProperties) console.log('tween has fast properties');
 
-    expect(animateIsOptimized).to.equal(49);
+    expect(isOptimized(animateIsOptimized)).to.equal(true);
     expect(animationHasFastProperties).to.equal(true);
     expect(tweenHasFastProperties).to.equal(true);
   });
@@ -124,7 +130,7 @@ suite('Node tests', () => {
       loopDelay: Math.random() * 3
     })
 
-    expect(getOptimizationStatus(createTimeline)).to.equal(49);
+    expect(isOptimized(getOptimizationStatus(createTimeline))).to.equal(true);
 
     const tl2 = createTimeline({
       defaults: {
@@ -143,7 +149,7 @@ suite('Node tests', () => {
     tl2.play();
     tl2.pause();
 
-    expect(getOptimizationStatus(createTimeline)).to.equal(49);
+    expect(isOptimized(getOptimizationStatus(createTimeline))).to.equal(true);
 
     const tlHasFastProperties = %HasFastProperties(tl2);
 
@@ -168,7 +174,7 @@ suite('Node tests', () => {
 
     if (animationHasFastProperties) console.log('timer has fast properties');
 
-    expect(animateIsOptimized).to.equal(49);
+    expect(isOptimized(animateIsOptimized)).to.equal(true);
     expect(animationHasFastProperties).to.equal(true);
   });
 
@@ -217,7 +223,7 @@ suite('Node tests', () => {
     }
 
     setTimeout(() => {
-      expect(getOptimizationStatus(render)).to.equal(49);
+      expect(isOptimized(getOptimizationStatus(render))).to.equal(true);
 
       // Then mix animation types an manually render them
 
@@ -241,7 +247,7 @@ suite('Node tests', () => {
       }
 
       setTimeout(() => {
-        expect(getOptimizationStatus(render)).to.equal(49);
+        expect(isOptimized(getOptimizationStatus(render))).to.equal(true);
         resolve();
       }, 200)
 
@@ -268,7 +274,7 @@ suite('Node tests', () => {
     }
 
     setTimeout(() => {
-      expect(getOptimizationStatus(engine.update)).to.equal(49);
+      expect(isOptimized(getOptimizationStatus(engine.update))).to.equal(true);
       resolve();
     }, 200)
   });

@@ -441,7 +441,8 @@ suite('Values', () => {
 
     expect($target.style.zIndex).to.equal('0');
     expect($target.style.filter).to.equal('blur(0px) contrast(0)');
-    expect($target.style.transform).to.equal('translateX(calc(0px + 0rem))');
+    // anime.js writes calc(0px - 0rem); some Chrome versions read it back as "+ 0rem". Both are the same value.
+    expect($target.style.transform).to.be.oneOf(['translateX(calc(0px + 0rem))', 'translateX(calc(0px - 0rem))']);
     animation.pause().seek(animation.duration);
     expect($target.style.zIndex).to.equal('10');
     expect(getChildAtIndex(animation, 0)._toNumbers).to.deep.equal([10, 200]);

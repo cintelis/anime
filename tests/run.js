@@ -31,4 +31,11 @@ import './suites/eases.test.js';
 import './suites/leaks.test.js';
 
 mocha.checkLeaks();
-mocha.run();
+
+// Expose a summary for the headless runner (tests/headless.js); harmless in a normal browser session
+const failures = [];
+const runner = mocha.run();
+runner.on('fail', (test, err) => failures.push({ title: test.fullTitle(), error: String(err && err.message || err) }));
+runner.on('end', () => {
+  window['__mochaResults'] = { ...runner.stats, failures };
+});
