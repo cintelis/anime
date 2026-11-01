@@ -12,6 +12,8 @@ export class Timeline extends Timer {
     /** @type {Callback<this>} */
     onRender: Callback<this>;
     _ease: import("../types/index.js").EasingFunction;
+    /** @type {Array<JSAnimation>} Animations created by children with lazily resolved targets */
+    _lazyChildren: Array<JSAnimation>;
     /**
      * @overload
      * @param {TargetsParam} a1
@@ -20,11 +22,17 @@ export class Timeline extends Timer {
      * @return {this}
      *
      * @overload
+     * @param {LazyTargetsParam} a1 Function returning the targets, called when the playhead reaches this step
+     * @param {AnimationParams} a2
+     * @param {TimelinePosition} [a3]
+     * @return {this}
+     *
+     * @overload
      * @param {TimerParams} a1
      * @param {TimelinePosition} [a2]
      * @return {this}
      *
-     * @param {TargetsParam|TimerParams} a1
+     * @param {TargetsParam|LazyTargetsParam|TimerParams} a1
      * @param {TimelinePosition|AnimationParams} a2
      * @param {TimelinePosition|StaggerFunction<Number|String>|TweakRegister} [a3]
      */
@@ -37,11 +45,40 @@ export class Timeline extends Timer {
      * @return {this}
      *
      * @overload
+     * @param {LazyTargetsParam} a1 Function returning the targets, called when the playhead reaches this step
+     * @param {AnimationParams} a2
+     * @param {TimelinePosition} [a3]
+     * @return {this}
+     *
+     * @overload
      * @param {TimerParams} a1
      * @param {TimelinePosition} [a2]
      * @return {this}
      *
-     * @param {TargetsParam|TimerParams} a1
+     * @param {TargetsParam|LazyTargetsParam|TimerParams} a1
+     * @param {TimelinePosition|AnimationParams} a2
+     * @param {TimelinePosition|StaggerFunction<Number|String>|TweakRegister} [a3]
+     */
+    add(a1: LazyTargetsParam, a2: AnimationParams, a3?: TimelinePosition): this;
+    /**
+     * @overload
+     * @param {TargetsParam} a1
+     * @param {AnimationParams} a2
+     * @param {TimelinePosition|StaggerFunction<Number|String>|TweakRegister} [a3]
+     * @return {this}
+     *
+     * @overload
+     * @param {LazyTargetsParam} a1 Function returning the targets, called when the playhead reaches this step
+     * @param {AnimationParams} a2
+     * @param {TimelinePosition} [a3]
+     * @return {this}
+     *
+     * @overload
+     * @param {TimerParams} a1
+     * @param {TimelinePosition} [a2]
+     * @return {this}
+     *
+     * @param {TargetsParam|LazyTargetsParam|TimerParams} a1
      * @param {TimelinePosition|AnimationParams} a2
      * @param {TimelinePosition|StaggerFunction<Number|String>|TweakRegister} [a3]
      */
@@ -160,11 +197,13 @@ export function createTimeline(parameters?: TimelineParams): Timeline;
 import { Timer } from '../timer/timer.js';
 import type { DefaultsParams } from '../types/index.js';
 import type { Callback } from '../types/index.js';
+import { JSAnimation } from '../animation/animation.js';
 import type { TargetsParam } from '../types/index.js';
 import type { AnimationParams } from '../types/index.js';
 import type { TimelinePosition } from '../types/index.js';
 import type { StaggerFunction } from '../types/index.js';
 import type { TweakRegister } from '../types/index.js';
+import type { LazyTargetsParam } from '../types/index.js';
 import type { TimerParams } from '../types/index.js';
 import type { Tickable } from '../types/index.js';
 import type { WAAPIAnimation } from '../waapi/waapi.js';

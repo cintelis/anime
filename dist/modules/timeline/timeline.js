@@ -20,6 +20,7 @@ import { parseTimelinePosition } from './position.js';
 
 /**
  * @import {
+ *   LazyTargetsParam,
  *   TargetsParam,
  *   Callback,
  *   Tickable,
@@ -93,6 +94,83 @@ function addTlChild(childParams, tl, timePosition, targets, index, allTargets) {
   return tl;
 }
 
+/**
+ * Adds a child whose targets are resolved when the playhead reaches it.
+ * The timeline reserves `delay + duration` for it; when that step begins, the targets function runs,
+ * an animation is built for the result, and it is kept in sync with the timeline (so seeking, reversing
+ * and reverting work). If per-target values such as stagger delays make the animation longer or shorter
+ * than the reserved slot, it is time-scaled to fit.
+ *
+ * @param {Timeline} tl
+ * @param {LazyTargetsParam} resolveTargets
+ * @param {AnimationParams} params
+ * @param {TimelinePosition|StaggerFunction<Number|String>|TweakRegister} [position]
+ * @return {Timeline}
+ */
+function addLazyChild(tl, resolveTargets, params, position) {
+  if (isFnc(position)) {
+    console.warn('Stagger positions need the targets up front, so they are ignored for lazily resolved targets. Use a stagger delay instead.');
+    position = undefined;
+  }
+  // Editor tweak positions carry their value in defaultValue (same as regular children)
+  const slotPosition = /** @type {TimelinePosition} */(position && /** @type {*} */(position).type ? /** @type {*} */(position).defaultValue : position);
+  const defaults = tl.defaults;
+  const numericDelay = isNum(params.delay) ? params.delay : isUnd(params.delay) && isNum(defaults.delay) ? defaults.delay : null;
+  const slotDuration = isNum(params.duration) ? params.duration : isNum(defaults.duration) ? defaults.duration : globals.defaults.duration;
+  /** @type {AnimationParams} */
+  const childParams = { ...defaults, ...params, autoplay: false };
+  // A plain numeric delay is carried by the slot itself, so the animation starts at the slot's start
+  if (numericDelay !== null) childParams.delay = 0;
+
+  /** @type {JSAnimation} */
+  let child = null;
+  /** @type {TargetsArray} */
+  let resolved = null;
+
+  const resolve = () => {
+    const targets = parseTargets(resolveTargets(tl));
+    const unchanged = resolved && resolved.length === targets.length && resolved.every((t, i) => t === targets[i]);
+    if (unchanged) return;
+    // New targets (e.g. new elements on a later loop): stop the previous animation where it is
+    if (child) child.cancel();
+    resolved = targets;
+    lastProgress = -1;
+    child = new JSAnimation(targets, childParams, null, 0).init();
+    tl._lazyChildren.push(child);
+  };
+
+  // Sync the animation to the slot's progress (0 to 1) on every render. The slot is a tiny animation of a
+  // private value: its modifier runs whenever that value renders, including when seeking back to the start
+  // (a plain timer only gets onUpdate while its time is above 0).
+  let lastProgress = -1;
+  // Targets are only resolved from the slot's onBegin: the timeline mutes callbacks during its internal
+  // build-time renders, while the modifier would run then too (before earlier steps have created elements).
+  const sync = (/** @type {Number} */progress) => {
+    // Skip repeated renders at the same point (seeking again would re-fire callbacks such as onComplete)
+    if (child && progress !== lastProgress) {
+      lastProgress = progress;
+      // Map the slot's progress onto the animation's full length (earliest delay + duration)
+      const total = child._delay + child.duration;
+      child.seek(progress * total - child._delay);
+    }
+    return progress;
+  };
+
+  return tl.add({ progress: 0 }, {
+    progress: [0, 1],
+    delay: numericDelay || 0,
+    duration: slotDuration,
+    ease: 'linear',
+    playbackEase: 'linear',
+    loop: 0,
+    alternate: false,
+    reversed: false,
+    composition: 'none',
+    modifier: sync,
+    onBegin: resolve,
+  }, slotPosition);
+}
+
 let TLId = 0;
 
 class Timeline extends Timer {
@@ -121,6 +199,8 @@ class Timeline extends Timer {
     this._ease = tlPlaybackEase ? parseEase(tlPlaybackEase) : null;
     /** @type {Number} */
     this.iterationDuration = 0;
+    /** @type {Array<JSAnimation>} Animations created by children with lazily resolved targets */
+    this._lazyChildren = [];
     // Timelines follow engine.reducedMotion unless they opt out with `reducedMotion: false`
     this._reduceMotion = parameters.reducedMotion !== false;
   }
@@ -133,17 +213,27 @@ class Timeline extends Timer {
    * @return {this}
    *
    * @overload
+   * @param {LazyTargetsParam} a1 Function returning the targets, called when the playhead reaches this step
+   * @param {AnimationParams} a2
+   * @param {TimelinePosition} [a3]
+   * @return {this}
+   *
+   * @overload
    * @param {TimerParams} a1
    * @param {TimelinePosition} [a2]
    * @return {this}
    *
-   * @param {TargetsParam|TimerParams} a1
+   * @param {TargetsParam|LazyTargetsParam|TimerParams} a1
    * @param {TimelinePosition|AnimationParams} a2
    * @param {TimelinePosition|StaggerFunction<Number|String>|TweakRegister} [a3]
    */
   add(a1, a2, a3) {
     const isAnim = isObj(a2);
     const isTimer = isObj(a1);
+    // A function instead of targets: resolve them when the playhead reaches this step
+    if (isAnim && isFnc(a1)) {
+      return /** @type {this} */(addLazyChild(this, /** @type {LazyTargetsParam} */(a1), /** @type {AnimationParams} */(a2), a3));
+    }
     if (isAnim || isTimer) {
       this._hasChildren = true;
       if (isAnim) {
@@ -324,6 +414,8 @@ class Timeline extends Timer {
   revert() {
     super.revert();
     forEachChildren(this, (/** @type {JSAnimation|Timer} */child) => child.revert, true);
+    this._lazyChildren.forEach(child => child.revert());
+    this._lazyChildren.length = 0;
     return revertValues(this);
   }
 

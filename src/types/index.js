@@ -106,6 +106,14 @@ export {}
 /** @typedef {Array.<JSTarget>|JSTarget} JSTargetsParam */
 /** @typedef {Array.<JSTarget>} JSTargetsArray */
 /** @typedef {Array.<TargetSelector>|TargetSelector} TargetsParam */
+
+/**
+ * Function passed to `timeline.add()` instead of targets. It runs when the playhead reaches that step,
+ * so it can find elements created earlier in the timeline (for example by `.call()`).
+ * @callback LazyTargetsParam
+ * @param {Timeline} timeline
+ * @return {TargetsParam}
+ */
 /** @typedef {Array.<Target>} TargetsArray */
 
 // Eases types
