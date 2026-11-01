@@ -68,6 +68,11 @@ export type DOMTargetsArray = Array<DOMTarget>;
 export type JSTargetsParam = Array<JSTarget> | JSTarget;
 export type JSTargetsArray = Array<JSTarget>;
 export type TargetsParam = Array<TargetSelector> | TargetSelector;
+/**
+ * Function passed to `timeline.add()` instead of targets. It runs when the playhead reaches that step,
+ * so it can find elements created earlier in the timeline (for example by `.call()`).
+ */
+export type LazyTargetsParam = (timeline: Timeline) => TargetsParam;
 export type TargetsArray = Array<Target>;
 export type EasingFunction = (time: number) => number;
 export type EaseStringParamNames = ("linear" | "none" | "in" | "out" | "inOut" | "inQuad" | "outQuad" | "inOutQuad" | "inCubic" | "outCubic" | "inOutCubic" | "inQuart" | "outQuart" | "inOutQuart" | "inQuint" | "outQuint" | "inOutQuint" | "inSine" | "outSine" | "inOutSine" | "inCirc" | "outCirc" | "inOutCirc" | "inExpo" | "outExpo" | "inOutExpo" | "inBounce" | "outBounce" | "inOutBounce" | "inBack" | "outBack" | "inOutBack" | "inElastic" | "outElastic" | "inOutElastic" | "out(p = 1.675)" | "inOut(p = 1.675)" | "inBack(overshoot = 1.7)" | "outBack(overshoot = 1.7)" | "inOutBack(overshoot = 1.7)" | "inElastic(amplitude = 1, period = .3)" | "outElastic(amplitude = 1, period = .3)" | "inOutElastic(amplitude = 1, period = .3)");

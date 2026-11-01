@@ -29,6 +29,7 @@ import './suites/colors.test.js';
 import './suites/threejs.test.js';
 import './suites/eases.test.js';
 import './suites/reduced-motion.test.js';
+import './suites/lazy-targets.test.js';
 import './suites/leaks.test.js';
 
 mocha.checkLeaks();
