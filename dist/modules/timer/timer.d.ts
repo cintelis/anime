@@ -39,6 +39,8 @@ export class Timer extends Clock {
     iterationCount: number;
     /** @type {Boolean|ScrollObserver} */
     _autoplay: boolean | ScrollObserver;
+    /** @type {Boolean} Plain timers are often clocks or game loops, so they only reduce motion when asked to */
+    _reduceMotion: boolean;
     /** @type {Number} */
     _offset: number;
     /** @type {Number} */

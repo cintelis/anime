@@ -36,6 +36,16 @@ class Engine extends clock.Clock {
     super(initTime);
     this.useDefaultMainLoop = true;
     this.pauseOnDocumentHidden = true;
+    /**
+     * Reduced motion: `false` (default) animates normally, `true` always reduces motion,
+     * `'auto'` follows the user's `prefers-reduced-motion` OS setting (and updates live).
+     * When active, animations and timelines jump to their end state; infinite loops stop at the end of their first loop.
+     * Plain timers are not affected. Opt a single animation out with `reducedMotion: false`.
+     * @type {Boolean|'auto'}
+     */
+    this.reducedMotion = false;
+    /** @type {Boolean} */
+    this._prefersReducedMotion = false;
     /** @type {DefaultsParams} */
     this.defaults = globals.defaults;
     // this.paused = isBrowser && doc.hidden ? true  : false;
@@ -50,10 +60,13 @@ class Engine extends clock.Clock {
       this.computeDeltaTime(time);
       const engineSpeed = this._speed;
       const engineFps = this._fps;
+      const reduceMotion = this.reducesMotion;
       let activeTickable = /** @type {Tickable} */(this._head);
       while (activeTickable) {
         const nextTickable = activeTickable._next;
-        if (!activeTickable.paused) {
+        if (!activeTickable.paused && reduceMotion && activeTickable._reduceMotion) {
+          skipToEnd(activeTickable);
+        } else if (!activeTickable.paused) {
           render.tick(
             activeTickable,
             (time - activeTickable._startTime) * activeTickable._speed * engineSpeed,
@@ -73,6 +86,15 @@ class Engine extends clock.Clock {
       }
       additive.additive.update();
     }
+  }
+
+  /**
+   * Whether motion is currently being reduced, based on `reducedMotion` and the OS setting.
+   * @return {Boolean}
+   */
+  get reducesMotion() {
+    const setting = this.reducedMotion;
+    return setting === true || (setting === 'auto' && this._prefersReducedMotion);
   }
 
   wake() {
@@ -147,6 +169,14 @@ const engine = /*#__PURE__*/(() => {
       if (!engine.pauseOnDocumentHidden) return;
       consts.doc.hidden ? engine.pause() : engine.resume();
     });
+    // Track the OS "reduce motion" setting for `engine.reducedMotion = 'auto'`
+    const reducedMotionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+    if (reducedMotionQuery) {
+      engine._prefersReducedMotion = reducedMotionQuery.matches;
+      if (reducedMotionQuery.addEventListener) {
+        reducedMotionQuery.addEventListener('change', e => engine._prefersReducedMotion = e.matches);
+      }
+    }
   }
   return engine;
 })();
@@ -158,6 +188,20 @@ const tickEngine = () => {
     engine.update();
   } else {
     engine.reqId = 0;
+  }
+};
+
+/**
+ * Renders a tickable straight to its end state, through the normal completion path,
+ * so callbacks and promises still fire. Infinite loops stop at the end of their first loop.
+ * @param {Tickable} tickable
+ */
+const skipToEnd = tickable => {
+  if (tickable.iterationCount === Infinity) {
+    render.tick(tickable, tickable._delay + tickable.iterationDuration - consts.minValue, 0, 0, consts.tickModes.AUTO);
+    tickable.pause();
+  } else {
+    render.tick(tickable, tickable._delay + tickable.duration, 0, 0, consts.tickModes.AUTO);
   }
 };
 

@@ -134,6 +134,10 @@ export type TimerOptions = {
     frameRate?: number;
     playbackRate?: number;
     priority?: number;
+    /**
+     * Set to `false` to keep animating when `engine.reducedMotion` is active (animations and timelines), or `true` to make a plain timer follow it
+     */
+    reducedMotion?: boolean;
 };
 export type TimerParams = TimerOptions & TickableCallbacks<Timer>;
 export type FunctionValueReturn = number | string | TweenKeyValue | EasingParam | Array<number | string | TweenKeyValue>;
@@ -302,6 +306,10 @@ export type WAAPIAnimationOptions = {
     ease?: WAAPIEasingParam | WAAPIFunctionValue;
     composition?: CompositeOperation;
     persist?: boolean;
+    /**
+     * Set to `false` to keep animating when `engine.reducedMotion` is active
+     */
+    reducedMotion?: boolean;
     onComplete?: Callback<WAAPIAnimation>;
 };
 export type WAAPIAnimationParams = Record<string, WAAPIKeyframeValue | WAAPIAnimationOptions | boolean | ScrollObserver | Callback<WAAPIAnimation> | WAAPIEasingParam | WAAPITweenOptions> & WAAPIAnimationOptions;

@@ -202,6 +202,7 @@ export {}
  * @property {Number} [frameRate]
  * @property {Number} [playbackRate]
  * @property {Number} [priority]
+ * @property {Boolean} [reducedMotion] Set to `false` to keep animating when `engine.reducedMotion` is active (animations and timelines), or `true` to make a plain timer follow it
  */
 
 /**
@@ -447,6 +448,7 @@ export {}
  * @property {WAAPIEasingParam|WAAPIFunctionValue} [ease]
  * @property {CompositeOperation} [composition]
  * @property {Boolean} [persist]
+ * @property {Boolean} [reducedMotion] Set to `false` to keep animating when `engine.reducedMotion` is active
  * @property {Callback<WAAPIAnimation>} [onComplete]
  */
 

@@ -186,6 +186,7 @@
  * @property {Number} [frameRate]
  * @property {Number} [playbackRate]
  * @property {Number} [priority]
+ * @property {Boolean} [reducedMotion] Set to `false` to keep animating when `engine.reducedMotion` is active (animations and timelines), or `true` to make a plain timer follow it
  */
 
 /**
@@ -431,6 +432,7 @@
  * @property {WAAPIEasingParam|WAAPIFunctionValue} [ease]
  * @property {CompositeOperation} [composition]
  * @property {Boolean} [persist]
+ * @property {Boolean} [reducedMotion] Set to `false` to keep animating when `engine.reducedMotion` is active
  * @property {Callback<WAAPIAnimation>} [onComplete]
  */
 
@@ -2316,6 +2318,16 @@ class Engine extends Clock {
     super(initTime);
     this.useDefaultMainLoop = true;
     this.pauseOnDocumentHidden = true;
+    /**
+     * Reduced motion: `false` (default) animates normally, `true` always reduces motion,
+     * `'auto'` follows the user's `prefers-reduced-motion` OS setting (and updates live).
+     * When active, animations and timelines jump to their end state; infinite loops stop at the end of their first loop.
+     * Plain timers are not affected. Opt a single animation out with `reducedMotion: false`.
+     * @type {Boolean|'auto'}
+     */
+    this.reducedMotion = false;
+    /** @type {Boolean} */
+    this._prefersReducedMotion = false;
     /** @type {DefaultsParams} */
     this.defaults = defaults;
     // this.paused = isBrowser && doc.hidden ? true  : false;
@@ -2330,10 +2342,13 @@ class Engine extends Clock {
       this.computeDeltaTime(time);
       const engineSpeed = this._speed;
       const engineFps = this._fps;
+      const reduceMotion = this.reducesMotion;
       let activeTickable = /** @type {Tickable} */(this._head);
       while (activeTickable) {
         const nextTickable = activeTickable._next;
-        if (!activeTickable.paused) {
+        if (!activeTickable.paused && reduceMotion && activeTickable._reduceMotion) {
+          skipToEnd(activeTickable);
+        } else if (!activeTickable.paused) {
           tick(
             activeTickable,
             (time - activeTickable._startTime) * activeTickable._speed * engineSpeed,
@@ -2353,6 +2368,15 @@ class Engine extends Clock {
       }
       additive.update();
     }
+  }
+
+  /**
+   * Whether motion is currently being reduced, based on `reducedMotion` and the OS setting.
+   * @return {Boolean}
+   */
+  get reducesMotion() {
+    const setting = this.reducedMotion;
+    return setting === true || (setting === 'auto' && this._prefersReducedMotion);
   }
 
   wake() {
@@ -2427,6 +2451,14 @@ const engine = /*#__PURE__*/(() => {
       if (!engine.pauseOnDocumentHidden) return;
       doc.hidden ? engine.pause() : engine.resume();
     });
+    // Track the OS "reduce motion" setting for `engine.reducedMotion = 'auto'`
+    const reducedMotionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+    if (reducedMotionQuery) {
+      engine._prefersReducedMotion = reducedMotionQuery.matches;
+      if (reducedMotionQuery.addEventListener) {
+        reducedMotionQuery.addEventListener('change', e => engine._prefersReducedMotion = e.matches);
+      }
+    }
   }
   return engine;
 })();
@@ -2438,6 +2470,20 @@ const tickEngine = () => {
     engine.update();
   } else {
     engine.reqId = 0;
+  }
+};
+
+/**
+ * Renders a tickable straight to its end state, through the normal completion path,
+ * so callbacks and promises still fire. Infinite loops stop at the end of their first loop.
+ * @param {Tickable} tickable
+ */
+const skipToEnd = tickable => {
+  if (tickable.iterationCount === Infinity) {
+    tick(tickable, tickable._delay + tickable.iterationDuration - minValue, 0, 0, tickModes.AUTO);
+    tickable.pause();
+  } else {
+    tick(tickable, tickable._delay + tickable.duration, 0, 0, tickModes.AUTO);
   }
 };
 
@@ -2933,6 +2979,8 @@ class Timer extends Clock {
     this.iterationCount = timerIterationCount; // Number of loops
     /** @type {Boolean|ScrollObserver} */
     this._autoplay = parent ? false : setValue(autoplay, timerDefaults.autoplay);
+    /** @type {Boolean} Plain timers are often clocks or game loops, so they only reduce motion when asked to */
+    this._reduceMotion = parameters.reducedMotion === true;
     /** @type {Number} */
     this._offset = offsetPosition;
     /** @type {Number} */
@@ -3724,6 +3772,9 @@ class JSAnimation extends Timer {
 
     super(/** @type {TimerParams & AnimationParams} */(parameters), parent, parentPosition);
 
+    // Animations follow engine.reducedMotion unless they opt out with `reducedMotion: false`
+    this._reduceMotion = parameters.reducedMotion !== false;
+
     /** @type {Tween} */
     this._head;
     /** @type {Tween} */
@@ -4421,6 +4472,8 @@ class Timeline extends Timer {
     this._ease = tlPlaybackEase ? parseEase(tlPlaybackEase) : null;
     /** @type {Number} */
     this.iterationDuration = 0;
+    // Timelines follow engine.reducedMotion unless they opt out with `reducedMotion: false`
+    this._reduceMotion = parameters.reducedMotion !== false;
   }
 
   /**
@@ -8042,6 +8095,20 @@ class WAAPIAnimation {
 
     if (scroll) {
       /** @type {ScrollObserver} */(this.autoplay).link(this);
+    } else if (autoplay && params.reducedMotion !== false && engine.reducesMotion) {
+      // Reduced motion: jump to the end state. Infinite loops are cut to one iteration and stopped there.
+      if (iterations === Infinity) {
+        // Pause 1ms before the end of the first iteration (pausing fires no finish event; a smaller
+        // offset can be rounded onto the loop boundary by the browser, which shows the start state)
+        this.forEach(anim => {
+          const timing = anim.effect.getTiming();
+          anim.pause();
+          anim.currentTime = +timing.delay + +timing.duration - 1;
+        });
+        this.paused = true;
+      } else {
+        this.complete();
+      }
     }
   }
 
